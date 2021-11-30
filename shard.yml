@@ -1,0 +1,12 @@
+name: drift
+version: 0.1.0
+license: Apache-2.0
+
+authors:
+  - Luis Lavena <luislavena@gmail.com>
+
+crystal: 1.2.2
+
+targets:
+  drift:
+    main: src/cli.cr
