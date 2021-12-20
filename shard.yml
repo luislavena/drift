@@ -10,3 +10,13 @@ crystal: 1.2.2
 targets:
   drift:
     main: src/cli.cr
+
+dependencies:
+  db:
+    github: crystal-lang/crystal-db
+    version: "~> 0.10.1"
+
+development_dependencies:
+  sqlite3:
+    github: crystal-lang/crystal-sqlite3
+    version: "~> 0.18.0"
