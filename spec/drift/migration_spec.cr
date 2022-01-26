@@ -14,6 +14,11 @@ describe Drift::Migration do
       migration.statements_for(:down).size.should eq(1)
       migration.statements_for(:down).first.should eq("SELECT 3 AS three;")
     end
+
+    it "keeps an optional filename" do
+      migration = Drift::Migration.new(1_i64, "0001_create_users.sql")
+      migration.filename.should eq("0001_create_users.sql")
+    end
   end
 
   describe ".from_io" do
@@ -114,6 +119,7 @@ describe Drift::Migration do
       migration = Drift::Migration.from_filename?(path).not_nil!
 
       migration.id.should eq(20211219152312_i64)
+      migration.filename.should eq("20211219152312_create_humans.sql")
       migration.statements_for(:up).size.should eq(2)
       migration.statements_for(:down).size.should eq(1)
     end

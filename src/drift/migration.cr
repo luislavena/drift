@@ -16,10 +16,11 @@ module Drift
     MAGIC_MARKER = "-- drift:"
 
     getter id : Int64
+    getter filename : String
 
     @statements : Hash(Direction, Array(String))
 
-    def initialize(@id)
+    def initialize(@id, @filename = "")
       @statements = Direction.values.to_h { |direction| {direction, [] of String} }
     end
 
@@ -38,7 +39,7 @@ module Drift
       return unless File.exists?(filename)
 
       File.open(filename) do |io|
-        from_io(io, id)
+        from_io(io, id, File.basename(filename))
       end
     end
 
@@ -46,8 +47,8 @@ module Drift
       from_filename?(filename) || raise MigrationError.new("Unable to load migration from '#{filename}'")
     end
 
-    def self.from_io(io, id : Int64)
-      migration = new(id)
+    def self.from_io(io, id : Int64, filename : String = "")
+      migration = new(id, filename)
 
       buffer = IO::Memory.new
       direction = nil
