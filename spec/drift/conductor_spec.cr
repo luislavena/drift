@@ -1,10 +1,6 @@
 require "../spec_helper"
 require "sqlite3"
 
-private def db_connection
-  DB.connect "sqlite3:%3Amemory%3A"
-end
-
 describe Drift::Conductor do
   context "(folder with migrations)" do
     it "loads all migrations in sequence" do
