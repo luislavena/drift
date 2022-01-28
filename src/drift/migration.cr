@@ -3,7 +3,6 @@ module Drift
   end
 
   class Migration
-
     enum Direction
       Up
       Down
@@ -16,11 +15,11 @@ module Drift
     MAGIC_MARKER = "-- drift:"
 
     getter id : Int64
-    getter filename : String
+    getter filename : String? = nil
 
     @statements : Hash(Direction, Array(String))
 
-    def initialize(@id, @filename = "")
+    def initialize(@id, @filename = nil)
       @statements = Direction.values.to_h { |direction| {direction, [] of String} }
     end
 
@@ -32,22 +31,20 @@ module Drift
       @statements[direction]
     end
 
-    def self.from_filename?(filename : String | Path)
+    def self.from_filename(filename : String | Path)
       # extract ID from filename
       id = (ID_PATTERN.match(File.basename(filename)).try &.[1]).try &.to_i64
-      return unless id
-      return unless File.exists?(filename)
 
-      File.open(filename) do |io|
-        from_io(io, id, File.basename(filename))
+      if id
+        File.open(filename) do |io|
+          from_io(io, id, File.basename(filename))
+        end
+      else
+        raise MigrationError.new("Cannot determine migration ID from file '#{filename}'")
       end
     end
 
-    def self.from_filename(filename : String | Path)
-      from_filename?(filename) || raise MigrationError.new("Unable to load migration from '#{filename}'")
-    end
-
-    def self.from_io(io, id : Int64, filename : String = "")
+    def self.from_io(io, id : Int64, filename : String? = nil)
       migration = new(id, filename)
 
       buffer = IO::Memory.new

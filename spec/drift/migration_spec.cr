@@ -103,36 +103,31 @@ describe Drift::Migration do
         create_statement.should eq(create_statement)
       end
     end
+
+    it "optionally sets the given filename" do
+      migration = Drift::Migration.from_io("", 1_i64)
+      migration.filename.should be_nil
+
+      migration = Drift::Migration.from_io("", 1_i64, "0001_create_users.sql")
+      migration.filename.should eq("0001_create_users.sql")
+    end
   end
 
-  describe ".from_filename?" do
-    it "returns nil when missing file or ID" do
-      migration = Drift::Migration.from_filename?(fixture_path("missing", "001_missing.sql"))
-      migration.should be_nil
-
-      migration = Drift::Migration.from_filename?(fixture_path("missing", "no_id_file.sql"))
-      migration.should be_nil
-    end
-
-    it "populates the migration with ID from filename and the contents" do
+  describe ".from_filename" do
+    it "populates the migration with file contents and ID" do
       path = fixture_path("sequence", "20211219152312_create_humans.sql")
-      migration = Drift::Migration.from_filename?(path).not_nil!
+      migration = Drift::Migration.from_filename(path)
 
       migration.id.should eq(20211219152312_i64)
       migration.filename.should eq("20211219152312_create_humans.sql")
       migration.statements_for(:up).size.should eq(2)
       migration.statements_for(:down).size.should eq(1)
     end
-  end
 
-  describe ".from_filename" do
-    it "raises error when indicated file does not exist" do
-      path = fixture_path("missing", "20220126193812_create_dummies.sql")
-
-      expect_raises(Drift::MigrationError, /Unable to load migration from/) do
-        Drift::Migration.from_filename(path)
+    it "raises error when ID cannot be extracted from filename" do
+      expect_raises(Drift::MigrationError, /Cannot determine migration ID from file/) do
+        Drift::Migration.from_filename("no_id_migration.sql")
       end
     end
-
   end
 end
