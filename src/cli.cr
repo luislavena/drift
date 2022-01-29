@@ -1,3 +1,3 @@
 require "./drift"
 
-puts "drift v#{Drift::VERSION}"
+puts "#{PROGRAM_NAME} v#{Drift::VERSION}"

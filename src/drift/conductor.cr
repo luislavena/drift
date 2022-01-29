@@ -1,5 +1,4 @@
 require "db"
-require "uri"
 
 require "./migration"
 
