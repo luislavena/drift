@@ -4,29 +4,43 @@ require "uri"
 require "./migration"
 
 module Drift
-  class Conductor
-    private MigrationRow = {id: Int64, batch: Int32, duration_ns: Int64, applied_at: Time}
+  struct SchemaMigrationEntry
+    include DB::Serializable
 
-    getter migrations : Hash(Int64, Drift::Migration)
+    getter id : Int64
+    getter batch : Int64
+    getter duration_ns : Int64
+    getter applied_at : Time?
+
+    def initialize(@id, @batch, @duration_ns, @applied_at = nil)
+    end
+
+    def applied?
+      !@applied_at.nil?
+    end
+  end
+
+  class Conductor
+    getter migrations : Hash(Int64, Migration)
 
     def initialize
-      @migrations = Hash(Int64, Drift::Migration).new
+      @migrations = Hash(Int64, Migration).new
     end
 
     def add(migration : Migration)
       @migrations[migration.id] = migration
     end
 
-    def applied?(db, id : Int64)
+    def applied?(db, id : Int)
       query_migration_applied?(db, id)
     end
 
-    def apply(db, id : Int64)
+    def apply(db, id : Int)
       apply_batch(db, [id])
     end
 
-    def apply_batch(db, ids : Array(Int64))
-      applied_ids = query_applied_migrations(db).map(&.[:id])
+    def apply_batch(db, ids : Array(Int))
+      applied_ids = query_applied_migrations(db).map(&.id)
 
       batch = query_last_batch(db) + 1
       final_ids = (ids - applied_ids)
@@ -43,14 +57,18 @@ module Drift
 
     def apply_plan(db)
       available_ids = @migrations.keys.to_set
-      applied_ids = query_applied_migrations(db).map(&.[:id])
+      applied_ids = query_applied_migrations(db).map(&.id)
 
       (available_ids - applied_ids).to_a.sort!
     end
 
-    def load_migrations!(path : String | Path)
-      # clear existing list of migrations
+    # clear existing list of migrations
+    def clear
       @migrations.clear
+    end
+
+    def load_migrations!(path : String | Path)
+      clear
 
       entries = Dir.glob(File.join(path, "*.sql")).sort!
 
@@ -71,18 +89,39 @@ module Drift
 
     def rollback_batch_plan(db, batch : Int64)
       batch_migrations_ids = query_applied_migrations(db).select { |row|
-        row[:batch] == batch
-      }.map(&.[:id])
+        row.batch == batch
+      }.map(&.id)
 
       batch_migrations_ids.reverse!
     end
 
     def rollback_plan(db)
       reversed_batch_ids = query_applied_migrations(db).sort_by! { |row|
-        {-row[:batch], -row[:id]}
-      }.map(&.[:id])
+        {-row.batch, -row.id}
+      }.map(&.id)
 
       reversed_batch_ids
+    end
+
+    def status(db)
+      # transform Array(SchemaMigrationEntry) to Hash(Int64, SchemaMigrationEntry)
+      applied_migrations = Hash(Int64, SchemaMigrationEntry).new
+      query_applied_migrations(db).each do |row|
+        applied_migrations[row.id] = row
+      end
+
+      available_ids = @migrations.keys.to_set
+      applied_ids = applied_migrations.keys.to_set
+
+      combined_ids = (available_ids + applied_ids).to_a.sort!
+
+      combined_ids.map { |id|
+        if applied_entry = applied_migrations[id]?
+          applied_entry
+        else
+          SchemaMigrationEntry.new(id, 0_i64, 0_i64)
+        end
+      }
     end
 
     # FIXME: leaking internals of Drift::Migration
@@ -122,7 +161,7 @@ module Drift
     private def query_applied_migrations(db)
       verify_migration_table(db)
 
-      db.query_all("SELECT id, batch, duration_ns, applied_at FROM schema_migrations ORDER BY id ASC;", as: MigrationRow)
+      db.query_all("SELECT id, batch, duration_ns, applied_at FROM schema_migrations ORDER BY id ASC;", as: SchemaMigrationEntry)
     end
 
     private def query_last_batch(db)
