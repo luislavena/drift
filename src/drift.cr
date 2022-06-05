@@ -12,5 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-require "spec"
-require "../src/drift"
+module Drift
+  VERSION = {{ `shards version #{__DIR__}`.chomp.stringify }}
+end
+
+require "./drift/migration"
