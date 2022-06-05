@@ -116,4 +116,22 @@ describe Drift::Migration do
       end
     end
   end
+
+  describe ".load_file" do
+    it "populates migration with file contents" do
+      file_path = fixture_path("sequence", "20211219152312_create_humans.sql")
+      migration = Drift::Migration.load_file(file_path)
+
+      migration.id.should eq(20211219152312)
+      migration.filename.should eq("20211219152312_create_humans.sql")
+      migration.statements_for(:up).size.should eq(2)
+      migration.statements_for(:down).size.should eq(2)
+    end
+
+    it "raises error when unable to determine migration ID" do
+      expect_raises(Drift::MigrationError, /Cannot determine migration ID from file/) do
+        Drift::Migration.load_file("no_id_migration.sql")
+      end
+    end
+  end
 end
