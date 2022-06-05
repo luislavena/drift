@@ -14,6 +14,10 @@
 
 module Drift
   VERSION = {{ `shards version #{__DIR__}`.chomp.stringify }}
+
+  # :nodoc:
+  class MigrationError < Exception
+  end
 end
 
 require "./drift/migration"

@@ -20,6 +20,9 @@ module Drift
     end
 
     # :nodoc:
+    ID_PATTERN = /(^[0-9]+)/
+
+    # :nodoc:
     MAGIC_MARKER = "-- drift:"
 
     getter id : Int64
@@ -77,6 +80,21 @@ module Drift
       end
 
       migration
+    end
+
+    def self.load_file(filename : String) : self
+      basename = File.basename(filename)
+
+      # extract ID from filename
+      id = (ID_PATTERN.match(basename).try &.[1]).try &.to_i64
+
+      if id
+        File.open(filename) do |io|
+          from_io(io, id, basename)
+        end
+      else
+        raise MigrationError.new("Cannot determine migration ID from file '#{filename}'")
+      end
     end
   end
 end
