@@ -16,8 +16,20 @@ module Drift
   VERSION = {{ `shards version #{__DIR__}`.chomp.stringify }}
 
   # :nodoc:
+  ID_PATTERN = /(^[0-9]+)/
+
+  # :nodoc:
   class MigrationError < Exception
+  end
+
+  # :nodoc:
+  class ContextError < Exception
+  end
+
+  def self.extract_id?(filename : String) : Int64?
+    # extract ID from filename
+    (ID_PATTERN.match(File.basename(filename)).try &.[1]).try &.to_i64
   end
 end
 
-require "./drift/migration"
+require "./drift/*"
