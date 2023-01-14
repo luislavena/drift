@@ -67,11 +67,7 @@ in reverse order using the information on the previously mentioned table.
 ## Requirements
 
 Drift CLI is a standalone, self-contained executable capable of connecting to
-the following databases:
-
-* SQLite
-* MySQL
-* PostgreSQL
+SQLite databases.
 
 Drift (as library) only depends on Crystal's
 [`db`](https://github.com/crystal-lang/crystal-db) common API. To use it with
