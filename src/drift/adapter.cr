@@ -19,6 +19,11 @@ module Drift
   abstract class Adapter
     private getter db : DB::Database | DB::Connection
 
+    abstract def create_schema
+    abstract def schema_exists?
+    abstract def track_migration(id : Int64, batch : Int64, duration : Time::Span)
+    abstract def untrack_migration(id : Int64)
+
     def initialize(@db)
     end
 
