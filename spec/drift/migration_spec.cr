@@ -14,6 +14,12 @@
 
 require "../spec_helper"
 
+require "sqlite3"
+
+private def memory_db
+  DB.connect("sqlite3:%3Amemory%3A")
+end
+
 describe Drift::Migration do
   describe ".new" do
     it "accepts an optional filename" do
@@ -132,6 +138,24 @@ describe Drift::Migration do
       expect_raises(Drift::MigrationError, /Cannot determine migration ID from file/) do
         Drift::Migration.load_file("no_id_migration.sql")
       end
+    end
+  end
+
+  describe "#run(DB)" do
+    it "executes statements for a direction in the given order" do
+      db = memory_db
+      db.exec("CREATE TABLE IF NOT EXISTS dummy (id INTEGER PRIMARY KEY NOT NULL, value INTEGER NOT NULL);")
+      db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+
+      migration = Drift::Migration.new(1)
+      migration.add(:up, "INSERT INTO dummy (value) VALUES (20);")
+      migration.add(:up, "INSERT INTO dummy (value) VALUES (10);")
+
+      migration.run(:up, db)
+
+      values = db.query_all "SELECT value FROM dummy ORDER BY id ASC;", &.read(Int64)
+      values.size.should eq(2)
+      values.should eq([20, 10])
     end
   end
 end

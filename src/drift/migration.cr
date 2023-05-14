@@ -37,6 +37,12 @@ module Drift
       @statements[direction].push statement
     end
 
+    def run(direction : Direction, db)
+      statements_for(direction).each do |statement|
+        db.exec statement
+      end
+    end
+
     def statements_for(direction : Direction)
       @statements[direction]
     end
