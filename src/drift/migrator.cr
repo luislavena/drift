@@ -17,6 +17,15 @@ require "db"
 
 module Drift
   class Migrator
+    class MigrationEntry
+      include DB::Serializable
+
+      getter id : Int64
+      getter batch : Int64
+      getter duration_ns : Int64
+      getter applied_at : Time
+    end
+
     getter context : Context
     getter db : DB::Database | DB::Connection
 
@@ -45,6 +54,22 @@ module Drift
 
     def after_rollback(&proc : AfterCallback)
       @after_rollback.push proc
+    end
+
+    def applied : Array(MigrationEntry)
+      sql_all_applied = <<-SQL
+        SELECT
+          id, batch, applied_at, duration_ns
+        FROM
+          drift_migrations
+        ORDER BY
+          id ASC;
+        SQL
+
+      entries = db.query_all(sql_all_applied, as: MigrationEntry)
+      current_applied_ids = applied_ids
+
+      entries.reject! { |e| !e.id.in?(current_applied_ids) }
     end
 
     def applied?(id : Int64) : Bool

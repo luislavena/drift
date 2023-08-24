@@ -779,4 +779,37 @@ describe Drift::Migrator do
       after_ids.should eq([4, 2, 3, 1])
     end
   end
+
+  describe "#applied" do
+    it "returns an empty list when no migrations were applied" do
+      _, migrator = prepared_migrator
+
+      migrator.applied.should be_empty
+    end
+
+    it "returns ordered list of applied migrations" do
+      db, migrator = prepared_migrator
+      fake_migration db, 1
+      fake_migration db, 2
+
+      entries = migrator.applied
+      entries.should_not be_empty
+      entries.size.should eq(2)
+
+      mig1 = entries.first
+      mig1.id.should eq(1)
+    end
+
+    it "returns only known applied migrations" do
+      db, migrator = prepared_migrator
+      fake_migration db, 2
+      fake_migration db, 5
+
+      entries = migrator.applied
+      entries.size.should eq(1)
+
+      mig2 = entries.first
+      mig2.id.should eq(2)
+    end
+  end
 end
