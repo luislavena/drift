@@ -19,11 +19,15 @@ module Drift
   ID_PATTERN = /(^[0-9]+)/
 
   # :nodoc:
-  class MigrationError < Exception
+  class Error < Exception
   end
 
   # :nodoc:
-  class ContextError < Exception
+  class MigrationError < Error
+  end
+
+  # :nodoc:
+  class ContextError < Error
   end
 
   def self.extract_id?(filename : String) : Int64?
