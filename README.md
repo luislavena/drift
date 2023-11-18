@@ -162,7 +162,7 @@ require "drift"
 
 db = DB.connect "sqlite3:app.db"
 
-migrator = Drift::Migrator.new(db, "database/migrations")
+migrator = Drift::Migrator.from_path(db, "database/migrations")
 migrator.apply!
 
 db.close
