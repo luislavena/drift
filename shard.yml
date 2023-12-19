@@ -4,6 +4,9 @@ license: Apache-2.0
 crystal: "~> 1.4.0, < 2.0.0"
 authors:
   - Luis Lavena <luislavena@gmail.com>
+targets:
+  drift:
+    main: src/cli.cr
 dependencies:
   db:
     github: crystal-lang/crystal-db

@@ -24,6 +24,10 @@ module Drift
       getter batch : Int64
       getter duration_ns : Int64
       getter applied_at : Time
+
+      def duration
+        Time::Span.new(nanoseconds: duration_ns)
+      end
     end
 
     getter context : Context
@@ -189,6 +193,10 @@ module Drift
 
     def rollback(*ids : Int64)
       rollback_batch(ids.to_a)
+    end
+
+    def rollback(ids : Array(Int64))
+      rollback_batch(ids)
     end
 
     def rollback_plan

@@ -2,6 +2,7 @@
 *.dwarf
 /.shards/
 /bin/
+/database
 /docs/
 /lib/
 NOTES.txt
