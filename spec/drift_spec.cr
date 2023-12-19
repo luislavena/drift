@@ -14,5 +14,16 @@
 
 require "./spec_helper"
 
-# describe Drift do
-# end
+describe Drift do
+  describe ".extract_id?" do
+    it "extracts the ID from a filename that contains it" do
+      id = Drift.extract_id?("0001_create_users.sql")
+      id.should eq(1)
+    end
+
+    it "returns nothing when ID cannot be extracted" do
+      id = Drift.extract_id?("no_id_migration.sql")
+      id.should be_nil
+    end
+  end
+end
