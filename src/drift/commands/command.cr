@@ -71,6 +71,5 @@ module Drift
         "#{minutes}m #{seconds}s"
       end
     end
-
   end
 end
