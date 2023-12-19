@@ -90,7 +90,7 @@ To simplify its usage, it follows these conventions:
 * You can override this default by using `--path` option.
 * To select which database to use, you can use `--db` option. The value for
   this must be a valid [connection URI](https://crystal-lang.org/reference/1.4/database/#open-database).
-* If no option is provided, the CLI uses `DATABASE_URL` environment variable
+* If no option is provided, the CLI uses `DB_URL` environment variable
   instead.
 
 #### Commands
