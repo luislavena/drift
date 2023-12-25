@@ -48,18 +48,6 @@ module Drift
       def initialize(@options)
       end
 
-      private def build_db
-        if uri = options.db_url
-          DB.open(uri)
-        else
-          raise Drift::Error.new("A database is required.")
-        end
-      end
-
-      private def build_migrator
-        Drift::Migrator.from_path(build_db, options.migrations_path)
-      end
-
       private def check_prepared!(migrator : Drift::Migrator)
         raise Drift::Error.new("No migration table found.") unless migrator.prepared?
       end
@@ -83,6 +71,16 @@ module Drift
         seconds = span.seconds
 
         "#{minutes}m #{seconds}s"
+      end
+
+      private def with_migrator
+        if uri = options.db_url
+          DB.open(uri) do |db|
+            yield Drift::Migrator.from_path(db, options.migrations_path)
+          end
+        else
+          raise Drift::Error.new("A database is required.") unless uri
+        end
       end
     end
   end
