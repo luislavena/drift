@@ -20,7 +20,7 @@ require "db"
 module Drift
   module Commands
     class Options
-      property migrations_path : String = "database/migrations"
+      property migrations_path : String = Drift::MIGRATIONS_PATH
       property db_url : URI? { ENV["DB_URL"]?.try { |uri| URI.parse(uri) } }
 
       def self.from_parser(parser : OptionParser)

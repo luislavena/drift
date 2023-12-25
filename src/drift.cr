@@ -18,6 +18,9 @@ module Drift
   # :nodoc:
   ID_PATTERN = /(^[0-9]+)/
 
+  # Default migrations location
+  MIGRATIONS_PATH = "database/migrations"
+
   # :nodoc:
   class Error < Exception
   end
