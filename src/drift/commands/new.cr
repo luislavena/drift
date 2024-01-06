@@ -18,9 +18,9 @@ module Drift
   module Commands
     class New < Command
       MIGRATION_TEMPLATE = <<-SQL
-      -- drift:up
+      -- drift:migrate
 
-      -- drift:down
+      -- drift:rollback
       SQL
 
       def run(*args)

@@ -221,12 +221,12 @@ describe Drift::Migrator do
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
       end
 
-      it "executes migration up statements" do
+      it "executes migration statements" do
         db, migrator = prepared_migrator
         create_dummy db
 
         migration = migrator.context[1]
-        migration.add(:up, "INSERT INTO dummy (value) VALUES (10);")
+        migration.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
 
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
         migrator.apply(1)
@@ -239,8 +239,8 @@ describe Drift::Migrator do
         create_dummy db
 
         migration = migrator.context[1]
-        migration.add(:up, "INSERT INTO dummy (value) VALUES (10);")
-        migration.add(:up, "INSERT INTO foo (value)")
+        migration.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
+        migration.add(:migrate, "INSERT INTO foo (value)")
 
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
         expect_raises(Exception) do
@@ -281,7 +281,7 @@ describe Drift::Migrator do
         create_dummy db
 
         m1 = migrator.context[1]
-        m1.add(:up, "INSERT INTO dummy (value) VALUES (10);")
+        m1.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
 
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
         migrator.apply(1, 3)
@@ -304,11 +304,11 @@ describe Drift::Migrator do
         create_dummy db
 
         m1 = migrator.context[1]
-        m1.add(:up, "INSERT INTO dummy (value) VALUES (10);")
+        m1.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
 
         m2 = migrator.context[3]
-        m2.add(:up, "INSERT INTO dummy (value) VALUES (20);")
-        m2.add(:up, "INSERT INTO foo (value)")
+        m2.add(:migrate, "INSERT INTO dummy (value) VALUES (20);")
+        m2.add(:migrate, "INSERT INTO foo (value)")
 
         expect_raises(Exception) do
           migrator.apply(1, 3)
@@ -322,7 +322,7 @@ describe Drift::Migrator do
         create_dummy db
 
         migration = migrator.context[1]
-        migration.add(:up, "INSERT INTO dummy (value) VALUES (10);")
+        migration.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
 
         migrator.apply(1, 1, 1)
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
@@ -348,7 +348,7 @@ describe Drift::Migrator do
         create_dummy db
 
         migration = migrator.context[1]
-        migration.add(:down, "INSERT INTO dummy (value) VALUES (10);")
+        migration.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
 
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
         migrator.rollback(1)
@@ -361,7 +361,7 @@ describe Drift::Migrator do
         create_dummy db
 
         migration = migrator.context[2]
-        migration.add(:down, "INSERT INTO dummy (value) VALUES (20);")
+        migration.add(:rollback, "INSERT INTO dummy (value) VALUES (20);")
 
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
         migrator.rollback(2)
@@ -375,8 +375,8 @@ describe Drift::Migrator do
         create_dummy db
 
         migration = migrator.context[1]
-        migration.add(:down, "INSERT INTO dummy (value) VALUES (10);")
-        migration.add(:down, "INSERT INTO foo (value)")
+        migration.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
+        migration.add(:rollback, "INSERT INTO foo (value)")
 
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
         expect_raises(Exception) do
@@ -395,9 +395,9 @@ describe Drift::Migrator do
         create_dummy db
 
         m1 = migrator.context[1]
-        m1.add(:down, "INSERT INTO dummy (value) VALUES (10);")
+        m1.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
         m3 = migrator.context[3]
-        m3.add(:down, "INSERT INTO dummy (value) VALUES (30);")
+        m3.add(:rollback, "INSERT INTO dummy (value) VALUES (30);")
 
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
         migrator.rollback(3, 1)
@@ -422,7 +422,7 @@ describe Drift::Migrator do
         create_dummy db
 
         migration = migrator.context[1]
-        migration.add(:down, "INSERT INTO dummy (value) VALUES (10);")
+        migration.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
 
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
         migrator.rollback(1, 1, 1, 1)
@@ -436,9 +436,9 @@ describe Drift::Migrator do
         create_dummy db
 
         m1 = migrator.context[1]
-        m1.add(:down, "INSERT INTO dummy (value) VALUES (10);")
+        m1.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
         m2 = migrator.context[2]
-        m2.add(:down, "INSERT INTO dummy (value) VALUES (20);")
+        m2.add(:rollback, "INSERT INTO dummy (value) VALUES (20);")
 
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
         migrator.rollback(2, 1)
@@ -453,9 +453,9 @@ describe Drift::Migrator do
         create_dummy db
 
         m1 = migrator.context[1]
-        m1.add(:down, "INSERT INTO foo (value)")
+        m1.add(:rollback, "INSERT INTO foo (value)")
         m2 = migrator.context[2]
-        m2.add(:down, "INSERT INTO dummy (value) VALUES (10);")
+        m2.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
 
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
         expect_raises(Exception) do

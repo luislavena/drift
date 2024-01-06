@@ -32,15 +32,15 @@ describe Drift::Migration do
 
     it "accepts multiple statements on each direction" do
       migration = Drift::Migration.new(1)
-      migration.add(:up, "SELECT 1 AS one;")
-      migration.add(:up, "SELECT 2 AS two;")
-      migration.add(:down, "SELECT 3 AS three;")
+      migration.add(:migrate, "SELECT 1 AS one;")
+      migration.add(:migrate, "SELECT 2 AS two;")
+      migration.add(:rollback, "SELECT 3 AS three;")
 
-      migration.statements_for(:up).size.should eq(2)
-      migration.statements_for(:up).first.should eq("SELECT 1 AS one;")
+      migration.statements_for(:migrate).size.should eq(2)
+      migration.statements_for(:migrate).first.should eq("SELECT 1 AS one;")
 
-      migration.statements_for(:down).size.should eq(1)
-      migration.statements_for(:down).first.should eq("SELECT 3 AS three;")
+      migration.statements_for(:rollback).size.should eq(1)
+      migration.statements_for(:rollback).first.should eq("SELECT 3 AS three;")
     end
   end
 
@@ -56,44 +56,44 @@ describe Drift::Migration do
     end
 
     context "(magic comments)" do
-      it "parses statement on a given direction" do
+      it "parses statement on a given type" do
         data = <<-SQL
-          -- drift:up
+          -- drift:migrate
           SELECT 1;
           SQL
 
         migration = Drift::Migration.from_io(data, 1)
-        migration.statements_for(:up).size.should eq(1)
-        migration.statements_for(:up).first.should eq("SELECT 1;")
+        migration.statements_for(:migrate).size.should eq(1)
+        migration.statements_for(:migrate).first.should eq("SELECT 1;")
       end
 
-      it "ignores statements without indicated direction" do
+      it "ignores statements without indicated type" do
         contents = <<-SQL
           SELECT 4;
           SQL
 
         migration = Drift::Migration.from_io(contents, 1)
-        migration.statements_for(:up).should be_empty
-        migration.statements_for(:down).should be_empty
+        migration.statements_for(:migrate).should be_empty
+        migration.statements_for(:rollback).should be_empty
       end
 
-      it "recognizes multiple statements in multiple directions" do
+      it "recognizes multiple statements of any type" do
         data = <<-SQL
-          -- drift:up
+          -- drift:migrate
           SELECT 1;
           SELECT 2;
 
-          -- drift:down
+          -- drift:rollback
           SELECT 3;
           SQL
 
         migration = Drift::Migration.from_io(data, 1)
-        up_statements = migration.statements_for(:up)
-        up_statements.size.should eq(2)
+        migrate_statements = migration.statements_for(:migrate)
+        migrate_statements.size.should eq(2)
 
-        down_statements = migration.statements_for(:down)
-        down_statements.size.should eq(1)
-        down_statements.first.should eq("SELECT 3;")
+        rollback_statements = migration.statements_for(:rollback)
+        rollback_statements.size.should eq(1)
+        rollback_statements.first.should eq("SELECT 3;")
       end
 
       it "recognizes multi line statements" do
@@ -105,19 +105,19 @@ describe Drift::Migration do
           SQL
 
         data = <<-SQL
-          -- drift:up
+          -- drift:migrate
           #{create_statement}
           CREATE INDEX IF NOT EXISTS idx_humans_name ON humans(name);
 
-          -- drift:down
+          -- drift:rollback
           DROP TABLE IF EXISTS humans;
           SQL
 
         migration = Drift::Migration.from_io(data, 1)
-        migration.statements_for(:up).size.should eq(2)
-        migration.statements_for(:down).size.should eq(1)
+        migration.statements_for(:migrate).size.should eq(2)
+        migration.statements_for(:rollback).size.should eq(1)
 
-        create_statement = migration.statements_for(:up).first
+        create_statement = migration.statements_for(:migrate).first
         create_statement.should eq(create_statement)
       end
     end
@@ -130,8 +130,8 @@ describe Drift::Migration do
 
       migration.id.should eq(20211219152312)
       migration.filename.should eq("20211219152312_create_humans.sql")
-      migration.statements_for(:up).size.should eq(2)
-      migration.statements_for(:down).size.should eq(2)
+      migration.statements_for(:migrate).size.should eq(2)
+      migration.statements_for(:rollback).size.should eq(2)
     end
 
     it "raises error when unable to determine migration ID" do
@@ -148,10 +148,10 @@ describe Drift::Migration do
       db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
 
       migration = Drift::Migration.new(1)
-      migration.add(:up, "INSERT INTO dummy (value) VALUES (20);")
-      migration.add(:up, "INSERT INTO dummy (value) VALUES (10);")
+      migration.add(:migrate, "INSERT INTO dummy (value) VALUES (20);")
+      migration.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
 
-      migration.run(:up, db)
+      migration.run(:migrate, db)
 
       values = db.query_all "SELECT value FROM dummy ORDER BY id ASC;", &.read(Int64)
       values.size.should eq(2)

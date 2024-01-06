@@ -11,7 +11,7 @@ around the CLI and library/classes might change between versions.
 
 ## Features
 
-* Self-contained migration files (both up and down statements within
+* Self-contained migration files (both migrate and rollback statements within
   same `.sql` file).
 * No new DSL or ORM to learn, just plain `.sql` files in a folder.
 * A CLI to facilitate generation and execution of migrations.
@@ -27,23 +27,23 @@ against a database. This applies to both [the CLI](#as-tool-cli) and
 [the library](#as-library-crystal-shard) (Crystal shard).
 
 Each migration file must contain two special comments before any SQL
-statements: `drift:up` to indicate that the following statements should be
-executed when migrating and `drift:down` to indicate the statements should be
-executed when rolling back the migration.
+statements: `drift:migrate` to indicate that the following statements should
+be executed when migrating and `drift:rollback` to indicate the statements
+should be executed when rolling back the migration.
 
-Each direction (up, down) within the file can contain multiple SQL statements.
-Statements can span multiple lines, but all must be properly terminated
-using `;`.
+Each type (migrate, rollback) within the file can contain multiple SQL
+statements. Statements can span multiple lines, but all must be properly
+terminated using `;`.
 
 ```sql
--- drift:up
+-- drift:migrate
 CREATE TABLE users (
   id INTEGER PRIMARY KEY,
   name TEXT,
   phone TEXT
 );
 
--- drift:down
+-- drift:rollback
 DROP TABLE IF EXISTS users;
 ```
 
@@ -53,15 +53,15 @@ ID translates to a migration created June 1st, 2022 at 8:45pm.
 
 The CLI uses this convention when creating new migration files.
 
-These migration files will be applied (up direction) one by one by executing
-each of the SQL statements present on each migration.
+These migration files will be applied (migrate) one by one by executing each
+of the SQL statements present on each migration.
 
 Once completed, information about each applied migration will be stored within
 the database itself, so can be used later to determine which one could be
 rolled back, which ones were applied and when. All this information is
 stored in a dedicated table named `drift_migrations`.
 
-When rolling back (down direction), the applied migrations will be executed
+When rolling back, the applied migrations will be executed
 in reverse order using the information on the previously mentioned table.
 
 ## Requirements

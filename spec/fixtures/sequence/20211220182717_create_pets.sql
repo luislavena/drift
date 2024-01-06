@@ -1,4 +1,4 @@
--- drift:up
+-- drift:migrate
 CREATE TABLE IF NOT EXISTS pets (
     id INTEGER PRIMARY KEY NOT NULL,
     name TEXT NOT NULL,
@@ -12,5 +12,5 @@ CREATE TABLE IF NOT EXISTS pets (
 CREATE INDEX IF NOT EXISTS idx_pets_name ON pets(name);
 CREATE INDEX IF NOT EXISTS idx_pets_owner ON pets(owner_id);
 
--- drift:down
+-- drift:rollback
 DROP TABLE IF EXISTS pets;

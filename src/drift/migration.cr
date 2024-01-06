@@ -14,9 +14,10 @@
 
 module Drift
   class Migration
-    enum Direction
-      Up
-      Down
+    # :nodoc:
+    enum Type
+      Migrate
+      Rollback
     end
 
     # :nodoc:
@@ -25,59 +26,58 @@ module Drift
     getter id : Int64
     getter filename : String? = nil
 
-    @statements : Hash(Direction, Array(String))
+    @statements : Hash(Type, Array(String))
 
     def initialize(@id : Int64, @filename : String? = nil)
-      @statements = Direction.values.to_h { |direction|
-        {direction, Array(String).new}
+      @statements = Type.values.to_h { |type|
+        {type, Array(String).new}
       }
     end
 
-    def add(direction : Direction, statement : String)
-      @statements[direction].push statement
+    def add(type : Type, statement : String)
+      @statements[type].push statement
     end
 
-    def run(direction : Direction, db)
-      statements_for(direction).each do |statement|
+    def run(type : Type, db)
+      statements_for(type).each do |statement|
         db.exec statement
       end
     end
 
-    def statements_for(direction : Direction)
-      @statements[direction]
+    def statements_for(type : Type)
+      @statements[type]
     end
 
     def self.from_io(io, id : Int64, filename : String? = nil) : self
       migration = new(id, filename)
 
       buffer = IO::Memory.new
-      direction = nil
+      type = nil
 
       io.each_line do |line|
         stripped_line = line.strip
-
         # detect markers
         if stripped_line.starts_with?(MAGIC_MARKER)
           case stripped_line[MAGIC_MARKER.size..-1]
-          when "up"
-            direction = Direction::Up
+          when "migrate"
+            type = Type::Migrate
             next
-          when "down"
-            direction = Direction::Down
+          when "rollback"
+            type = Type::Rollback
             next
           else
             # TBD: support other commands?
           end
         end
 
-        next unless direction
+        next unless type
 
         # write raw line into buffer
         buffer.puts line
 
         if stripped_line.ends_with?(';')
           # strip new line when saving the new statement
-          migration.add(direction, buffer.to_s.strip)
+          migration.add(type, buffer.to_s.strip)
           buffer.clear
         end
       end
