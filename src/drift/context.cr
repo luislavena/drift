@@ -37,7 +37,7 @@ module Drift
 
     def load_path(path : String)
       # build a list of .sql files to load
-      migration_files = Dir.glob(File.join(path, "*.sql"))
+      migration_files = Dir.glob(File.join(path, "*.sql")).sort!
 
       # extract the IDs of found filenames for mapping
       migration_files.each do |filename|
