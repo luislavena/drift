@@ -17,7 +17,7 @@ module Drift
     def {{ name.id }} : Drift::Context
       ctx = Drift::Context.new
 
-      {{ run("./drift/support/migrations_loader.cr", path, dir) }}
+      {{ run("./support/migrations_loader.cr", path, dir) }}
 
       ctx
     end
