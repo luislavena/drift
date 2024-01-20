@@ -1,4 +1,4 @@
-# Copyright 2022 Luis Lavena
+# Copyright 2024 Luis Lavena
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,30 +13,13 @@
 # limitations under the License.
 
 module Drift
-  VERSION = {{ `shards version #{__DIR__}`.chomp.stringify }}
+  macro embed_as(name, path, dir = __DIR__)
+    def {{ name.id }} : Drift::Context
+      ctx = Drift::Context.new
 
-  # :nodoc:
-  ID_PATTERN = /(^[0-9]+)/
+      {{ run("./drift/support/migrations_loader.cr", path, dir) }}
 
-  # Default migrations location
-  MIGRATIONS_PATH = "database/migrations"
-
-  # :nodoc:
-  class Error < Exception
-  end
-
-  # :nodoc:
-  class MigrationError < Error
-  end
-
-  # :nodoc:
-  class ContextError < Error
-  end
-
-  def self.extract_id?(filename : String) : Int64?
-    # extract ID from filename
-    (ID_PATTERN.match(File.basename(filename)).try &.[1]).try &.to_i64
+      ctx
+    end
   end
 end
-
-require "./drift/*"

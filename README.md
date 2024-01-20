@@ -191,6 +191,37 @@ track of the state changes (which migration were applied, when were applied),
 the migrator uses a dedicated table named `drift_migrations` that is
 automatically created if not found.
 
+#### Embedding migrations
+
+By default, Drift will load and use migration files from the filesystem. This
+approach works great during development, but it increases complexity for
+distribution of binaries.
+
+To help with that, `Drift.embed_as` macro is available, which will collect
+all the migration files from the filesystem and bundles them within the
+generated executable, removing the need to distribute them along your
+application.
+
+```crystal
+require "sqlite3"
+require "drift"
+
+Drift.embed_as("my_migrations", "database/migrations")
+
+db = DB.connect "sqlite3:app.db"
+
+migrator = Drift::Migrator.new(db, my_migrations)
+migrator.apply!
+
+db.close
+```
+
+In the above example, `Drift.embed_as` created `my_migrations` method
+bundling all the migrations found in `database/migrations` directory.
+
+When using classes or modules, you can also define instance or class methods
+by prepending `self.` to the method name to use by Drift.
+
 ## Contribution policy
 
 Inspired by [Litestream](https://github.com/benbjohnson/litestream) and
