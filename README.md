@@ -6,8 +6,9 @@ files. No magic DSL to learn, no weird ORM limitations to deal with, just
 plain and simple SQL files in a folder, tracked and applied or reverted
 (rollback) sequentially or in batches, and that's all.
 
-> :warning: this project is still in **early development** and the UX/DX
-around the CLI and library/classes might change between versions.
+> [!WARNING]
+> Drift is still in **early development** and the UX/DX around the CLI and
+> library/classes might change between versions.
 
 ## Features
 
@@ -17,8 +18,9 @@ around the CLI and library/classes might change between versions.
 * A CLI to facilitate generation and execution of migrations.
 * An optional library to be integrated within your project (Eg. to check and
   run migrations on start).
-* DB-agnostic, compatible with any
-  [Crystal DB](https://github.com/crystal-lang/crystal-db) adapter.
+* Currently works with SQLite3, but can be adapted to be DB-agnostic,
+  compatible with any [Crystal DB](https://github.com/crystal-lang/crystal-db)
+  adapter.
 
 ## Overview
 
