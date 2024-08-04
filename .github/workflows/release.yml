@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - CHANGELOG.md
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get the latest version
+        id: latest
+        uses: miniscruff/changie-action@v2
+        with:
+          args: latest
+
+      - name: Create tag
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+          git tag -a ${{ steps.latest.outputs.output }} -m "Release ${{ steps.latest.outputs.output }}"
+          git push --tags
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          name: ${{ steps.latest.outputs.output }}
+          tag_name: ${{ steps.latest.outputs.output }}
+          body_path: .changes/${{ steps.latest.outputs.output }}.md
+          # TODO: include release binaries

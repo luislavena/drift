@@ -1,0 +1,5 @@
+kind: internal
+body: Enforces CHANGELOG entries on PRs
+time: 2024-07-20T18:14:28.964448+02:00
+custom:
+    Issue: ""

@@ -1,0 +1,5 @@
+kind: internal
+body: Automate release on merge of Release PR
+time: 2024-08-04T12:10:37.508443+02:00
+custom:
+    Issue: ""
