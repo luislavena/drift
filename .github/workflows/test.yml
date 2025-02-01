@@ -27,10 +27,20 @@ jobs:
       - uses: crystal-lang/install-crystal@v1
       - run: crystal tool format --check
 
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crystal-ameba/github-action@v0.12.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: crystal-lang/install-crystal@v1
-      - run: shards install
+      - run: shards install --skip-executables --skip-postinstall
       - run: crystal spec

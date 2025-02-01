@@ -73,7 +73,7 @@ module Drift
         "#{minutes}m #{seconds}s"
       end
 
-      private def with_migrator
+      private def with_migrator(&)
         if uri = options.db_url
           DB.open(uri) do |db|
             yield Drift::Migrator.from_path(db, options.migrations_path)
