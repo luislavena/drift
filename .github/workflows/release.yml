@@ -131,13 +131,6 @@ jobs:
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "<>"
-          git tag -a ${{ steps.latest.outputs.output }} -m "Release ${{ steps.latest.outputs.output }}"
-          git push --tags
-
-      - name: Create tag
-        run: |
-          git config user.name "GitHub Actions Bot"
-          git config user.email "<>"
           git tag -a ${{ env.RELEASE_TAG }} -m "Release ${{ env.RELEASE_TAG }}"
           git push --tags
 
