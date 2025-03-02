@@ -14,11 +14,13 @@ on:
 jobs:
   check-changelog:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
     steps:
       - name: Check for CHANGELOG entry presence
         uses: brettcannon/check-for-changed-files@v1
         with:
-          token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          token: ${{ github.token }}
           file-pattern: |
             .changes/unreleased/*.yaml
             CHANGELOG.md

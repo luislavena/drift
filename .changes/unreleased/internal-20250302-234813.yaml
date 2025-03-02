@@ -1,0 +1,5 @@
+kind: internal
+body: No longer require custom GitHub token for workflows
+time: 2025-03-02T23:48:13.672603+01:00
+custom:
+    Issue: ""
