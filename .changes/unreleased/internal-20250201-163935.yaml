@@ -1,0 +1,5 @@
+kind: internal
+body: Use Ameba to lint codebase
+time: 2025-02-01T16:39:35.22518+01:00
+custom:
+    Issue: ""
