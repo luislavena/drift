@@ -49,6 +49,33 @@ CREATE TABLE users (
 DROP TABLE IF EXISTS users;
 ```
 
+For complex SQL statements that include semicolons within the statement itself
+(like triggers, functions, or procedures), you can use the special comments
+`-- drift:begin` and `-- drift:end` to wrap the entire statement:
+
+```sql
+-- drift:migrate
+-- drift:begin
+CREATE TRIGGER update_timestamp AFTER
+UPDATE ON users BEGIN
+UPDATE users
+SET
+    last_modified = CURRENT_TIMESTAMP
+WHERE
+    id = NEW.id;
+
+INSERT INTO
+    audit_log (user_id, action)
+VALUES
+    (NEW.id, 'updated');
+
+END;
+-- drift:end
+
+-- drift:rollback
+DROP TRIGGER IF EXISTS update_timestamp;
+```
+
 Each migration must be identified by a unique ID. The recommended pattern for
 this is to generate those IDs using dates and time. Eg. `20220601204500` as
 ID translates to a migration created June 1st, 2022 at 8:45pm.

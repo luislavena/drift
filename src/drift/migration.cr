@@ -53,6 +53,7 @@ module Drift
 
       buffer = IO::Memory.new
       type = nil
+      multi_statement_mode = false
 
       io.each_line do |line|
         stripped_line = line.strip
@@ -65,6 +66,17 @@ module Drift
           when "rollback"
             type = Type::Rollback
             next
+          when "begin"
+            multi_statement_mode = true
+            next
+          when "end"
+            if multi_statement_mode && !buffer.empty? && type
+              # Save the multi-line statement when end marker is reached
+              migration.add(type, buffer.to_s.strip)
+              buffer.clear
+            end
+            multi_statement_mode = false
+            next
           else
             # TBD: support other commands?
           end
@@ -75,11 +87,17 @@ module Drift
         # write raw line into buffer
         buffer.puts line
 
-        if stripped_line.ends_with?(';')
+        # In multi-statement mode, don't process semicolons as statement separators
+        if !multi_statement_mode && stripped_line.ends_with?(';')
           # strip new line when saving the new statement
           migration.add(type, buffer.to_s.strip)
           buffer.clear
         end
+      end
+
+      # Handle case where file ends without a semicolon
+      if !buffer.empty? && type && !multi_statement_mode
+        migration.add(type, buffer.to_s.strip)
       end
 
       migration
