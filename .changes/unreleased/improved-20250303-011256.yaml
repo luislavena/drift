@@ -1,0 +1,5 @@
+kind: improved
+body: Migrations now support multi-statement blocks
+time: 2025-03-03T01:12:56.962111+01:00
+custom:
+    Issue: "2"
