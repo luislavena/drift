@@ -121,21 +121,6 @@ describe Drift::Migration do
         create_statement.should eq(create_statement)
       end
 
-      it "handles statements that don't end with a semicolon" do
-        content = <<-SQL
-          -- drift:migrate
-          CREATE TABLE users (
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL
-          )
-          SQL
-
-        migration = Drift::Migration.from_io(content, 1)
-
-        migration.statements_for(:migrate).size.should eq(1)
-        migration.statements_for(:migrate).first.should contain("CREATE TABLE users")
-      end
-
       it "handles mixing regular statements with multi-statement blocks" do
         mixed_statement = <<-SQL
           -- drift:migrate

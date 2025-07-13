@@ -95,11 +95,6 @@ module Drift
         end
       end
 
-      # Handle case where file ends without a semicolon
-      if !buffer.empty? && type && !multi_statement_mode
-        migration.add(type, buffer.to_s.strip)
-      end
-
       migration
     end
 
