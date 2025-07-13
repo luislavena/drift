@@ -1,6 +1,6 @@
 services:
   app:
-    image: ghcr.io/luislavena/hydrofoil-crystal:1.15
+    image: ghcr.io/luislavena/hydrofoil-crystal:${CRYSTAL_VERSION:-1.16}
     command: overmind start -f Procfile.dev
     working_dir: /app
 
