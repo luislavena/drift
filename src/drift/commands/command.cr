@@ -34,6 +34,10 @@ module Drift
           options.migrations_path = value
         end
 
+        parser.invalid_option do |flag|
+          raise Drift::Error.new("#{flag} is not a valid option.")
+        end
+
         options
       end
     end
