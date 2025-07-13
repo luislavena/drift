@@ -2,7 +2,7 @@ services:
   app:
     image: ghcr.io/luislavena/hydrofoil-crystal:${CRYSTAL_VERSION:-1.16}
     command: overmind start -f Procfile.dev
-    working_dir: /app
+    working_dir: /workspace/${COMPOSE_PROJECT_NAME}
     environment:
       # Workaround Overmind socket issues with Vite
       # Ref: https://github.com/luislavena/hydrofoil-crystal/issues/66
@@ -14,4 +14,4 @@ services:
     user: ${FIXUID:-1000}:${FIXGID:-1000}
 
     volumes:
-      - .:/app:cached
+      - .:/workspace/${COMPOSE_PROJECT_NAME}:cached
