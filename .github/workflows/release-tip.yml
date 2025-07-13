@@ -28,8 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set build numbers
         run: |
-          LAST_TAG=$(git tag --sort=-version:refname | head -1)
-          echo "DRIFT_BUILD=$(git rev-list --count $LAST_TAG..)" >> $GITHUB_ENV
+          echo "DRIFT_BUILD=$(git rev-list --count HEAD)" >> $GITHUB_ENV
           echo "DRIFT_COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       - name: Build prerelease version
