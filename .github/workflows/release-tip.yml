@@ -1,0 +1,158 @@
+name: Release Tip
+
+on:
+  # allow manually triggering from within GitHub Actions
+  workflow_dispatch: {}
+
+  # automatically triggered after successful test workflow
+  workflow_run:
+    workflows:
+      - Test
+    types:
+      - completed
+    branches:
+      - main
+
+# We must only run one release workflow at a time to prevent corrupting
+# our release artifacts.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.latest_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set build numbers
+        run: |
+          LAST_TAG=$(git tag --sort=-version:refname | head -1)
+          echo "DRIFT_BUILD=$(git rev-list --count $LAST_TAG..)" >> $GITHUB_ENV
+          echo "DRIFT_COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: Build prerelease version
+        uses: miniscruff/changie-action@v2
+        with:
+          args: batch auto --prerelease dev.${{ env.DRIFT_BUILD }}.${{ env.DRIFT_COMMIT }}
+
+      - name: Merge changes
+        uses: miniscruff/changie-action@v2
+        with:
+          args: merge
+
+      - name: Get latest version
+        id: changie_latest
+        uses: miniscruff/changie-action@v2
+        with:
+          args: latest --remove-prefix
+
+      - name: Export version
+        id: latest_version
+        run: |
+          echo "version=${{ steps.changie_latest.outputs.output }}" >> $GITHUB_OUTPUT
+
+  build:
+    needs: [setup]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform:
+          # - x86_64-linux-musl
+          # - aarch64-linux-musl
+          - aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+      - name: patch shard.yml version
+        env:
+          DRIFT_VERSION: ${{ needs.setup.outputs.version }}
+        run: |
+          sed -i "s/^version: .*/version: $DRIFT_VERSION/" shard.yml
+
+      - uses: docker://ghcr.io/luislavena/hydrofoil-crystal:1.16
+        with:
+          args: sh -c "shards check || shards install --skip-postinstall --skip-executables"
+
+      - name: Build for ${{ matrix.platform }}
+        uses: docker://ghcr.io/luislavena/crystal-xbuild:tip
+        with:
+          entrypoint: xbuild
+          args: src/cli.cr drift ${{ matrix.platform }}
+
+      - name: Create tarball
+        run: |
+          tar -czf drift-${{ matrix.platform }}.tar.gz -C build/${{ matrix.platform }} drift
+
+      - name: Upload tarball artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: |
+            drift-${{ matrix.platform }}.tar.gz
+
+      - name: Calculate SHA256
+        run: |
+          sha256sum drift-${{ matrix.platform }}.tar.gz > sha-info-${{ matrix.platform }}.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sha-info-${{ matrix.platform }}
+          path: sha-info-${{ matrix.platform }}.txt
+
+  release:
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download tarballs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: ./release
+          merge-multiple: true
+
+      - name: Download SHA info files
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sha-info-*
+          path: ./sha-info
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS file and checksums list
+        run: |
+          touch SHA256SUMS
+          echo "## Checksums" > checksums_list.md
+          echo "" >> checksums_list.md
+          echo '```' >> checksums_list.md
+
+          # Process each SHA info file
+          for info_dir in ./sha-info/sha-info-*; do
+            cat $info_dir >> SHA256SUMS
+            cat $info_dir >> checksums_list.md
+          done
+
+          echo '```' >> checksums_list.md
+
+      - name: Update Tip to latest
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+          git tag -fa tip -m "Latest Continuous Build" ${GITHUB_SHA}
+          git push --force origin tip
+
+      - name: Release Tip
+        uses: softprops/action-gh-release@v2
+        with:
+          name: 'Drift Tip ("Nightly Build")'
+          prerelease: true
+          tag_name: tip
+          target_commitish: ${{ github.sha }}
+          files: |
+            SHA256SUMS
+            release/*.tar.gz
