@@ -1,0 +1,5 @@
+kind: internal
+body: Uses release-relative build number for nightly builds
+time: 2025-07-14T01:23:44.571327+02:00
+custom:
+    Issue: ""
