@@ -58,8 +58,8 @@ jobs:
     strategy:
       matrix:
         platform:
-          # - x86_64-linux-musl
-          # - aarch64-linux-musl
+          - x86_64-linux-musl
+          - aarch64-linux-musl
           - aarch64-apple-darwin
     steps:
       - uses: actions/checkout@v4
