@@ -120,6 +120,43 @@ describe Drift::Migration do
         create_statement = migration.statements_for(:migrate).first
         create_statement.should eq(create_statement)
       end
+
+      it "handles mixing regular statements with multi-statement blocks" do
+        mixed_statement = <<-SQL
+          -- drift:migrate
+          CREATE TABLE users (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP
+          );
+
+          -- drift:begin
+          CREATE TRIGGER set_timestamp_on_insert
+          BEFORE INSERT ON users
+          FOR EACH ROW
+          BEGIN
+            NEW.created_at = CURRENT_TIMESTAMP;
+            NEW.updated_at = CURRENT_TIMESTAMP;
+          END;
+          -- drift:end
+
+          CREATE INDEX idx_users_name ON users(name);
+
+          -- drift:rollback
+          DROP INDEX IF EXISTS idx_users_name;
+          DROP TRIGGER IF EXISTS set_timestamp_on_insert;
+          DROP TABLE IF EXISTS users;
+          SQL
+
+        migration = Drift::Migration.from_io(mixed_statement, 1)
+
+        # Should have 3 migrate statements: table creation, trigger, and index
+        migration.statements_for(:migrate).size.should eq(3)
+
+        # Should have 3 rollback statements: index drop, trigger drop, and table drop
+        migration.statements_for(:rollback).size.should eq(3)
+      end
     end
   end
 
@@ -132,6 +169,20 @@ describe Drift::Migration do
       migration.filename.should eq("20211219152312_create_humans.sql")
       migration.statements_for(:migrate).size.should eq(2)
       migration.statements_for(:rollback).size.should eq(2)
+    end
+
+    it "loads multi-statement migration with begin/end markers correctly" do
+      file_path = fixture_path("trigger", "20250302234927_create_timestamp_trigger.sql")
+      migration = Drift::Migration.load_file(file_path)
+
+      migration.statements_for(:migrate).size.should eq(1)
+      migrate_stmt = migration.statements_for(:migrate).first
+      migrate_stmt.should contain("CREATE TRIGGER update_timestamp")
+      migrate_stmt.should contain("UPDATE employees")
+      migrate_stmt.should contain("INSERT INTO")
+
+      migration.statements_for(:rollback).size.should eq(1)
+      migration.statements_for(:rollback).first.should eq("DROP TRIGGER IF EXISTS update_timestamp;")
     end
 
     it "raises error when unable to determine migration ID" do
