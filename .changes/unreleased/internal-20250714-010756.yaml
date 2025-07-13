@@ -1,0 +1,5 @@
+kind: internal
+body: Build all supported platforms during nightly (tip)
+time: 2025-07-14T01:07:56.820653+02:00
+custom:
+    Issue: ""
