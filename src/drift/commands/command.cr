@@ -38,6 +38,10 @@ module Drift
           raise Drift::Error.new("#{flag} is not a valid option.")
         end
 
+        parser.missing_option do |flag|
+          raise Drift::Error.new("Missing option: #{flag}.")
+        end
+
         options
       end
     end
