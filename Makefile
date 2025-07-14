@@ -56,7 +56,7 @@ restart: ## restart the containers
 
 setup: ## initialize the project
 	@docker compose build app
-	@docker compose run --rm app -- shards check || shards install
+	@docker compose run --rm app -- sh -c '(shards check || shards install)'
 
 stop: ## stop running containers
 	@docker compose down
