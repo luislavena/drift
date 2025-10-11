@@ -147,12 +147,8 @@ module Drift
     def rollback_plan
       last_batch = @dialect.max_batch(db)
 
-      # Get all migration IDs and filter by last batch
-      all_ids = @dialect.all_migrations(db)
-
-      batch_ids = all_ids.select { |entry| entry.batch == last_batch }
-        .map(&.id)
-        .reverse
+      # Get migration IDs for last batch in reverse order
+      batch_ids = @dialect.batch_migration_ids_reverse(db, last_batch)
 
       (Set{*batch_ids} & Set{*context.ids}).to_a
     end

@@ -147,6 +147,14 @@ module Drift
       db.using_connection { |conn| max_batch(conn) }
     end
 
+    # Retrieve migration IDs for a specific batch in reverse order (id DESC)
+    abstract def batch_migration_ids_reverse(conn : DB::Connection, batch : Int64) : Array(Int64)
+
+    # :ditto:
+    def batch_migration_ids_reverse(db : DB::Database, batch : Int64) : Array(Int64)
+      db.using_connection { |conn| batch_migration_ids_reverse(conn, batch) }
+    end
+
     # Insert a new migration record into the tracking table
     abstract def insert_migration(conn : DB::Connection, id : Int64, batch : Int64, applied_at : Time, duration_ns : Int64) : Nil
 

@@ -60,6 +60,21 @@ module Drift
         conn.query_one?(sql_find_migration_id, id, as: Int64)
       end
 
+      def batch_migration_ids_reverse(conn : DB::Connection, batch : Int64) : Array(Int64)
+        sql_batch_ids_reverse = <<-SQL
+          SELECT
+            id
+          FROM
+            drift_migrations
+          WHERE
+            batch = ?
+          ORDER BY
+            id DESC;
+          SQL
+
+        conn.query_all(sql_batch_ids_reverse, batch, as: Int64)
+      end
+
       def insert_migration(conn : DB::Connection, id : Int64, batch : Int64, applied_at : Time, duration_ns : Int64) : Nil
         sql_insert_migration = <<-SQL
           INSERT INTO drift_migrations
