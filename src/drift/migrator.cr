@@ -31,7 +31,7 @@ module Drift
     end
 
     getter context : Context
-    getter db : DB::Database | DB::Connection
+    getter db : DB::Database
 
     alias BeforeCallback = Proc(Int64, Nil)
     alias AfterCallback = Proc(Int64, Time::Span, Nil)

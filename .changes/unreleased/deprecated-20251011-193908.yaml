@@ -1,0 +1,5 @@
+kind: deprecated
+body: Limit Drift::Migrator to DB::Database types
+time: 2025-10-11T19:39:08.945847+02:00
+custom:
+    Issue: ""

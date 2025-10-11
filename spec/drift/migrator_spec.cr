@@ -26,7 +26,7 @@ private struct MigrationEntry
 end
 
 private def memory_db
-  DB.connect "sqlite3:%3Amemory%3A"
+  DB.open "sqlite3:%3Amemory%3A"
 end
 
 private def create_dummy(db)

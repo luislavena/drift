@@ -189,7 +189,7 @@ application:
 require "sqlite3"
 require "drift"
 
-db = DB.connect "sqlite3:app.db"
+db = DB.open "sqlite3:app.db"
 
 migrator = Drift::Migrator.from_path(db, "database/migrations")
 migrator.apply!
@@ -237,7 +237,7 @@ require "drift"
 
 Drift.embed_as("my_migrations", "database/migrations")
 
-db = DB.connect "sqlite3:app.db"
+db = DB.open "sqlite3:app.db"
 
 migrator = Drift::Migrator.new(db, my_migrations)
 migrator.apply!
