@@ -15,6 +15,8 @@
 require "./context"
 require "db"
 
+require "./dialect"
+
 module Drift
   class Migrator
     class MigrationEntry
@@ -42,7 +44,10 @@ module Drift
     @before_rollback = Array(BeforeCallback).new
     @after_rollback = Array(AfterCallback).new
 
+    @dialect : Dialect
+
     def initialize(@db, @context)
+      @dialect = Dialect.from_db(@db)
     end
 
     def self.from_path(db, path : String)
@@ -61,49 +66,20 @@ module Drift
     end
 
     def applied : Array(MigrationEntry)
-      sql_all_applied = <<-SQL
-        SELECT
-          id, batch, applied_at, duration_ns
-        FROM
-          drift_migrations
-        ORDER BY
-          id ASC;
-        SQL
-
-      entries = db.query_all(sql_all_applied, as: MigrationEntry)
+      entries = @dialect.all_migrations(db)
       current_applied_ids = applied_ids
 
       entries.reject! { |e| !e.id.in?(current_applied_ids) }
     end
 
     def applied?(id : Int64) : Bool
-      sql_find_migration_id = <<-SQL
-        SELECT
-          id
-        FROM
-          drift_migrations
-        WHERE
-          id = ?
-        LIMIT
-          1;
-        SQL
-
-      query_id = db.query_one?(sql_find_migration_id, id, as: Int64)
+      query_id = @dialect.find_migration_id(db, id)
 
       query_id == id
     end
 
     def applied_ids
-      sql_applied_ids = <<-SQL
-        SELECT
-          id
-        FROM
-          drift_migrations
-        ORDER BY
-          id ASC;
-        SQL
-
-      result_ids = Set{*db.query_all(sql_applied_ids, as: Int64)}
+      result_ids = Set{*@dialect.all_migration_ids(db)}
       (result_ids & Set{*context.ids}).to_a
     end
 
@@ -137,35 +113,14 @@ module Drift
     end
 
     def prepare!
-      sql_create_schema = <<-SQL
-        CREATE TABLE IF NOT EXISTS drift_migrations (
-          id INTEGER PRIMARY KEY NOT NULL,
-          batch INTEGER NOT NULL,
-          applied_at TEXT NOT NULL,
-          duration_ns INTEGER NOT NULL
-        );
-        SQL
-
       db.transaction do |tx|
         cnn = tx.connection
-        cnn.exec(sql_create_schema)
+        @dialect.create_schema!(cnn)
       end
     end
 
     def prepared? : Bool
-      sql_check_schema = <<-SQL
-        SELECT
-          name
-        FROM
-          sqlite_schema
-        WHERE
-          type = "table"
-          AND name = "drift_migrations"
-        LIMIT
-          1;
-        SQL
-
-      db.query_one?(sql_check_schema, as: String) ? true : false
+      @dialect.prepared?(db)
     end
 
     def reset!
@@ -173,17 +128,7 @@ module Drift
     end
 
     def reset_plan
-      sql_reverse_applied_plan = <<-SQL
-        SELECT
-          id
-        FROM
-          drift_migrations
-        ORDER BY
-          batch DESC,
-          id DESC;
-        SQL
-
-      batch_ids = Set{*db.query_all(sql_reverse_applied_plan, as: Int64)}
+      batch_ids = Set{*@dialect.all_migration_ids_reverse(db)}
       (batch_ids & Set{*context.ids}).to_a
     end
 
@@ -200,60 +145,24 @@ module Drift
     end
 
     def rollback_plan
-      sql_last_batch = <<-SQL
-        SELECT
-          COALESCE(
-            MAX(batch),
-            0
-          )
-        FROM
-          drift_migrations
-        LIMIT
-          1;
-        SQL
+      last_batch = @dialect.max_batch(db)
 
-      last_batch = db.query_one(sql_last_batch, as: Int64)
+      # Get all migration IDs and filter by last batch
+      all_ids = @dialect.all_migrations(db)
 
-      sql_reverse_applied_batch = <<-SQL
-        SELECT
-          id
-        FROM
-          drift_migrations
-        WHERE
-          batch = ?
-        ORDER BY
-          id DESC;
-        SQL
+      batch_ids = all_ids.select { |entry| entry.batch == last_batch }
+        .map(&.id)
+        .reverse
 
-      batch_ids = Set{*db.query_all(sql_reverse_applied_batch, last_batch, as: Int64)}
-      (batch_ids & Set{*context.ids}).to_a
+      (Set{*batch_ids} & Set{*context.ids}).to_a
     end
 
     private def apply_batch(ids : Array(Int64))
       plan_ids = Set{*ids} - Set{*applied_ids}
 
-      sql_last_batch = <<-SQL
-        SELECT
-          COALESCE(
-            MAX(batch),
-            0
-          )
-        FROM
-          drift_migrations
-        LIMIT
-          1;
-        SQL
-
-      sql_insert_migration = <<-SQL
-        INSERT INTO drift_migrations
-          (id, batch, applied_at, duration_ns)
-        VALUES
-          (?, ?, ?, ?);
-        SQL
-
       db.transaction do |tx|
         cnn = tx.connection
-        batch = cnn.query_one(sql_last_batch, as: Int64) + 1
+        batch = @dialect.max_batch(cnn) + 1
 
         plan_ids.each do |id|
           migration = context[id]
@@ -265,7 +174,7 @@ module Drift
           applied_at = Time.utc
           duration_ns = duration.total_nanoseconds.to_i64
 
-          cnn.exec(sql_insert_migration, id, batch, applied_at, duration_ns)
+          @dialect.insert_migration(cnn, id, batch, applied_at, duration_ns)
 
           # trigger after_apply callbacks
           @after_apply.each &.call(id, duration)
@@ -275,13 +184,6 @@ module Drift
 
     private def rollback_batch(ids : Array(Int64))
       plan_ids = Set{*ids} & Set{*applied_ids}
-
-      sql_delete_migration = <<-SQL
-        DELETE FROM
-          drift_migrations
-        WHERE
-          id = ?;
-        SQL
 
       db.transaction do |tx|
         cnn = tx.connection
@@ -293,7 +195,7 @@ module Drift
 
           duration = Time.measure { migration.run(:rollback, cnn) }
 
-          cnn.exec(sql_delete_migration, id)
+          @dialect.delete_migration(cnn, id)
 
           @after_rollback.each &.call(id, duration)
         end

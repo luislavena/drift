@@ -1,0 +1,5 @@
+kind: improved
+body: Abstract Migrator SQL operations as Dialect implementation
+time: 2025-10-11T19:57:02.013986+02:00
+custom:
+    Issue: ""
