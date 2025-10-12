@@ -138,37 +138,49 @@ describe Drift::Migrator do
     end
   end
 
-  describe "#prepared?" do
-    it "returns false on an clean database" do
-      migrator = ready_migrator
+  for_each_dialect do
+    describe "#prepared?" do
+      it "returns false on an clean database" do
+        db = dialect_db.call
+        migrator = ready_migrator(db)
 
-      migrator.prepared?.should be_false
+        migrator.prepared?.should be_false
+
+        db.close
+      end
+
+      it "returns true on a prepared database" do
+        db = dialect_db.call
+        # dummy table
+        db.exec "CREATE TABLE drift_migrations (id INTEGER PRIMARY KEY, dummy TEXT);"
+        migrator = ready_migrator(db)
+
+        migrator.prepared?.should be_true
+
+        db.close
+      end
     end
 
-    it "returns true on a prepared database" do
-      db = memory_db
-      # dummy table
-      db.exec "CREATE TABLE drift_migrations (id INTEGER PRIMARY KEY, dummy TEXT);"
-      migrator = ready_migrator(db)
+    describe "#prepare!" do
+      it "prepares the migration table" do
+        db = dialect_db.call
+        migrator = ready_migrator(db)
 
-      migrator.prepared?.should be_true
-    end
-  end
+        migrator.prepare!
+        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
 
-  describe "#prepare!" do
-    it "prepares the migration table" do
-      db = memory_db
-      migrator = ready_migrator(db)
+        db.close
+      end
 
-      migrator.prepare!
-      db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
-    end
+      it "does noop if database is already prepared" do
+        db = dialect_db.call
+        migrator = ready_migrator(db)
 
-    it "does noop if database is already prepared" do
-      migrator = ready_migrator
+        migrator.prepare!
+        migrator.prepare!
 
-      migrator.prepare!
-      migrator.prepare!
+        db.close
+      end
     end
   end
 
