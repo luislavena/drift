@@ -12,6 +12,9 @@ dependencies:
     github: crystal-lang/crystal-db
     version: ~> 0.14.0
 development_dependencies:
+  mysql:
+    github: crystal-lang/crystal-mysql
+    version: ~> 0.17.0
   pg:
     github: will/crystal-pg
     # FIXME: lock until new crystal-pg release
