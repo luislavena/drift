@@ -96,7 +96,10 @@ in reverse order using the information on the previously mentioned table.
 ## Requirements
 
 Drift CLI is a standalone, self-contained executable capable of connecting to
-SQLite databases.
+the following databases (dialects):
+
+* PostgreSQL
+* SQLite3
 
 Drift (as library) only depends on Crystal's
 [`db`](https://github.com/crystal-lang/crystal-db) common API. To use it with
@@ -190,6 +193,20 @@ require "sqlite3"
 require "drift"
 
 db = DB.open "sqlite3:app.db"
+
+migrator = Drift::Migrator.from_path(db, "database/migrations")
+migrator.apply!
+
+db.close
+```
+
+Or for a PostgreSQL database:
+
+```crystal
+require "pg"
+require "drift"
+
+db = DB.open "postgres://user:password@localhost/dbname"
 
 migrator = Drift::Migrator.from_path(db, "database/migrations")
 migrator.apply!
