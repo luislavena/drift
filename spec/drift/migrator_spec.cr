@@ -459,165 +459,169 @@ describe Drift::Migrator do
     end
   end
 
-  describe "#rollback(id)" do
-    context "with migration applied" do
-      it "removes migration from the list of applied" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        fake_migration db
+  for_each_dialect do
+    describe "#rollback(id)" do
+      context "with migration applied" do
+        it "removes migration from the list of applied" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db
 
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
-        migrator.rollback(1)
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
-
-        db.close
-      end
-
-      it "executes migration down statements" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        fake_migration db
-        create_dummy db
-
-        migration = migrator.context[1]
-        migration.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
-
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
-        migrator.rollback(1)
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(1)
-
-        db.close
-      end
-
-      it "removes only applied migrations" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        fake_migration db
-        create_dummy db
-
-        migration = migrator.context[2]
-        migration.add(:rollback, "INSERT INTO dummy (value) VALUES (20);")
-
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
-        migrator.rollback(2)
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
-
-        db.close
-      end
-
-      it "applies rollback within a transaction to avoid partial execution" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        fake_migration db
-        create_dummy db
-
-        migration = migrator.context[1]
-        migration.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
-        migration.add(:rollback, "INSERT INTO foo (value)")
-
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
-        expect_raises(Exception) do
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
           migrator.rollback(1)
-        end
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
 
-        db.close
+          db.close
+        end
+
+        it "executes migration down statements" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db
+          create_dummy db
+
+          migration = migrator.context[1]
+          migration.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
+
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+          migrator.rollback(1)
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(1)
+
+          db.close
+        end
+
+        it "removes only applied migrations" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db
+          create_dummy db
+
+          migration = migrator.context[2]
+          migration.add(:rollback, "INSERT INTO dummy (value) VALUES (20);")
+
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
+          migrator.rollback(2)
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+
+          db.close
+        end
+
+        it "applies rollback within a transaction to avoid partial execution" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db
+          create_dummy db
+
+          migration = migrator.context[1]
+          migration.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
+          migration.add(:rollback, "INSERT INTO foo (value)")
+
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+          expect_raises(Exception) do
+            migrator.rollback(1)
+          end
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
+
+          db.close
+        end
       end
     end
   end
 
-  describe "#rollback(ids)" do
-    context "with no migrations applied" do
-      it "does not rollback non-applied migration" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        create_dummy db
+  for_each_dialect do
+    describe "#rollback(ids)" do
+      context "with no migrations applied" do
+        it "does not rollback non-applied migration" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          create_dummy db
 
-        m1 = migrator.context[1]
-        m1.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
-        m3 = migrator.context[3]
-        m3.add(:rollback, "INSERT INTO dummy (value) VALUES (30);")
+          m1 = migrator.context[1]
+          m1.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
+          m3 = migrator.context[3]
+          m3.add(:rollback, "INSERT INTO dummy (value) VALUES (30);")
 
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
-        migrator.rollback(3, 1)
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+          migrator.rollback(3, 1)
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
 
-        db.close
-      end
-    end
-
-    context "with migrations applied" do
-      it "removes migration from the list of applied" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        fake_migration db, 1
-        fake_migration db, 2
-
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(2)
-        migrator.rollback(2, 1)
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
-
-        db.close
-      end
-
-      it "considers migration only once" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        fake_migration db, 1
-        create_dummy db
-
-        migration = migrator.context[1]
-        migration.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
-
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
-        migrator.rollback(1, 1, 1, 1)
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(1)
-
-        db.close
-      end
-
-      it "executes migration down statements" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        fake_migration db, 1
-        fake_migration db, 2
-        create_dummy db
-
-        m1 = migrator.context[1]
-        m1.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
-        m2 = migrator.context[2]
-        m2.add(:rollback, "INSERT INTO dummy (value) VALUES (20);")
-
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
-        migrator.rollback(2, 1)
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(2)
-        db.scalar("SELECT MAX(value) FROM dummy;").as(Int64).should eq(20)
-
-        db.close
-      end
-
-      it "applies rollback within a transaction to avoid partial execution" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        fake_migration db, 1
-        fake_migration db, 2
-        create_dummy db
-
-        m1 = migrator.context[1]
-        m1.add(:rollback, "INSERT INTO foo (value)")
-        m2 = migrator.context[2]
-        m2.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
-
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
-        expect_raises(Exception) do
-          migrator.rollback(2, 1)
+          db.close
         end
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(2)
+      end
 
-        db.close
+      context "with migrations applied" do
+        it "removes migration from the list of applied" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db, 1
+          fake_migration db, 2
+
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(2)
+          migrator.rollback(2, 1)
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
+
+          db.close
+        end
+
+        it "considers migration only once" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db, 1
+          create_dummy db
+
+          migration = migrator.context[1]
+          migration.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
+
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+          migrator.rollback(1, 1, 1, 1)
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(1)
+
+          db.close
+        end
+
+        it "executes migration down statements" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db, 1
+          fake_migration db, 2
+          create_dummy db
+
+          m1 = migrator.context[1]
+          m1.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
+          m2 = migrator.context[2]
+          m2.add(:rollback, "INSERT INTO dummy (value) VALUES (20);")
+
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+          migrator.rollback(2, 1)
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(2)
+          db.scalar("SELECT MAX(value) FROM dummy;").as(Int64).should eq(20)
+
+          db.close
+        end
+
+        it "applies rollback within a transaction to avoid partial execution" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db, 1
+          fake_migration db, 2
+          create_dummy db
+
+          m1 = migrator.context[1]
+          m1.add(:rollback, "INSERT INTO foo (value)")
+          m2 = migrator.context[2]
+          m2.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
+
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+          expect_raises(Exception) do
+            migrator.rollback(2, 1)
+          end
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(2)
+
+          db.close
+        end
       end
     end
   end
