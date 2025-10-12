@@ -16,6 +16,20 @@ require "../spec_helper"
 
 require "sqlite3"
 
+# Configuration for dialects to test
+DIALECTS = {
+  sqlite3: {
+    url: ENV["SQLITE3_DB_URL"]? || "sqlite3:%3Amemory%3A",
+    needs_cleanup: false,
+    skip: false,
+  },
+  postgresql: {
+    url: ENV["POSTGRES_DB_URL"]? || "postgres://drift:drift@localhost:5432/drift_test",
+    needs_cleanup: true,
+    skip: ENV["SKIP_POSTGRESQL"]? == "true",
+  },
+}
+
 private struct MigrationEntry
   include DB::Serializable
 
@@ -46,6 +60,11 @@ private def sample_context
   ctx.add Drift::Migration.new(4)
 
   ctx
+end
+
+private def cleanup_tables(db)
+  db.exec("DROP TABLE IF EXISTS drift_migrations CASCADE;")
+  db.exec("DROP TABLE IF EXISTS dummy CASCADE;")
 end
 
 private def ready_migrator(db = memory_db)
