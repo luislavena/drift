@@ -114,21 +114,27 @@ end
 describe Drift::Migrator do
   describe ".new" do
     it "reuses an existing context" do
+      db = memory_db
       ctx = sample_context
-      migrator = Drift::Migrator.new(memory_db, ctx)
+      migrator = Drift::Migrator.new(db, ctx)
 
       migrator.context.should be(ctx)
+
+      db.close
     end
   end
 
   describe ".from_path" do
     it "sets up a new context using a given path" do
-      migrator = Drift::Migrator.from_path(memory_db, fixture_path("sequence"))
+      db = memory_db
+      migrator = Drift::Migrator.from_path(db, fixture_path("sequence"))
 
       migrator.context.ids.should eq([
         20211219152312,
         20211220182717,
       ])
+
+      db.close
     end
   end
 
