@@ -29,8 +29,22 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: drift_test
+          POSTGRES_USER: drift
+          POSTGRES_PASSWORD: drift
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: crystal-lang/install-crystal@v1
       - run: shards install
       - run: crystal spec
+        env:
+          POSTGRES_DB_URL: postgres://drift:drift@postgres:5432/drift_test
