@@ -186,78 +186,102 @@ describe Drift::Migrator do
 
   describe "#applied?" do
     it "returns false when migration was not applied" do
-      _, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
 
       migrator.applied?(1).should be_false
+
+      db.close
     end
 
     it "returns true when migration was applied" do
-      db, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
       fake_migration db
 
       migrator.applied?(1).should be_true
+
+      db.close
     end
   end
 
   describe "#applied_ids" do
     it "returns an empty list when no migrations were applied" do
-      _, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
 
       migrator.applied_ids.should be_empty
+
+      db.close
     end
 
     it "returns ordered list of applied migrations" do
-      db, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
       fake_migration db, 1
       fake_migration db, 2
 
       ids = migrator.applied_ids
       ids.should_not be_empty
       ids.should eq([1, 2])
+
+      db.close
     end
 
     it "returns only known applied migrations" do
-      db, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
       fake_migration db, 1
       fake_migration db, 5
 
       ids = migrator.applied_ids
       ids.should_not be_empty
       ids.should eq([1])
+
+      db.close
     end
   end
 
   describe "#apply_plan" do
     context "with no migration applied" do
       it "returns a list of all migrations" do
-        _, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
 
         ids = migrator.apply_plan
         ids.should_not be_empty
         ids.should eq([1, 2, 3, 4])
+
+        db.close
       end
     end
 
     context "with some applied migrations" do
       it "returns a list of non-applied migrations" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db, 1
         fake_migration db, 3
 
         ids = migrator.apply_plan
         ids.should_not be_empty
         ids.should eq([2, 4])
+
+        db.close
       end
     end
 
     context "with applied migrations not locally available" do
       it "returns the list of only local non-applied ones" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db, 1
         fake_migration db, 5
 
         ids = migrator.apply_plan
         ids.should eq([2, 3, 4])
+
+        db.close
       end
     end
   end
@@ -265,7 +289,8 @@ describe Drift::Migrator do
   describe "#apply(id)" do
     context "with no existing migrations applied" do
       it "records the migration was applied" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
 
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
         migrator.apply(1)
@@ -278,17 +303,23 @@ describe Drift::Migrator do
         result.batch.should eq(1)
         result.applied_at.should be_close(Time.utc, 1.second)
         result.duration_ns.should be <= 1.second.total_nanoseconds.to_i64
+
+        db.close
       end
 
       it "applies migration only once" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         migrator.apply(1)
         migrator.apply(1)
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
+
+        db.close
       end
 
       it "executes migration statements" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         create_dummy db
 
         migration = migrator.context[1]
@@ -298,10 +329,13 @@ describe Drift::Migrator do
         migrator.apply(1)
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(1)
         db.scalar("SELECT MAX(value) FROM dummy;").as(Int64).should eq(10)
+
+        db.close
       end
 
       it "applies migration within a transaction to avoid partial execution" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         create_dummy db
 
         migration = migrator.context[1]
@@ -314,18 +348,23 @@ describe Drift::Migrator do
         end
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
+
+        db.close
       end
     end
 
     context "with existing migrations applied" do
       it "applies other migration as a new batch" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         migrator.apply(1)
         db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(1)
 
         migrator.apply(2)
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(2)
         db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(2)
+
+        db.close
       end
     end
   end
@@ -333,16 +372,20 @@ describe Drift::Migrator do
   describe "#apply(ids)" do
     context "with no migrations" do
       it "applies multiple migrations as part of the same batch" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
 
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
         migrator.apply(1, 3)
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(2)
         db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(1)
+
+        db.close
       end
 
       it "ignores already applied migration from the list" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db
         create_dummy db
 
@@ -353,20 +396,26 @@ describe Drift::Migrator do
         migrator.apply(1, 3)
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(2)
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+
+        db.close
       end
 
       it "increases batch number when executed multiple times for new migrations" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
 
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
         migrator.apply(1, 2)
         db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(1)
         migrator.apply(3, 4)
         db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(2)
+
+        db.close
       end
 
       it "applies all migrations as transaction to avoid partial execution" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         create_dummy db
 
         m1 = migrator.context[1]
@@ -381,10 +430,13 @@ describe Drift::Migrator do
         end
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+
+        db.close
       end
 
       it "applies repeated migration in list only once" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         create_dummy db
 
         migration = migrator.context[1]
@@ -393,6 +445,8 @@ describe Drift::Migrator do
         migrator.apply(1, 1, 1)
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(1)
+
+        db.close
       end
     end
   end
@@ -400,16 +454,20 @@ describe Drift::Migrator do
   describe "#rollback(id)" do
     context "with migration applied" do
       it "removes migration from the list of applied" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db
 
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
         migrator.rollback(1)
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
+
+        db.close
       end
 
       it "executes migration down statements" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db
         create_dummy db
 
@@ -419,10 +477,13 @@ describe Drift::Migrator do
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
         migrator.rollback(1)
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(1)
+
+        db.close
       end
 
       it "removes only applied migrations" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db
         create_dummy db
 
@@ -433,10 +494,13 @@ describe Drift::Migrator do
         migrator.rollback(2)
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+
+        db.close
       end
 
       it "applies rollback within a transaction to avoid partial execution" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db
         create_dummy db
 
@@ -450,6 +514,8 @@ describe Drift::Migrator do
         end
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
+
+        db.close
       end
     end
   end
@@ -457,7 +523,8 @@ describe Drift::Migrator do
   describe "#rollback(ids)" do
     context "with no migrations applied" do
       it "does not rollback non-applied migration" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         create_dummy db
 
         m1 = migrator.context[1]
@@ -468,22 +535,28 @@ describe Drift::Migrator do
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
         migrator.rollback(3, 1)
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+
+        db.close
       end
     end
 
     context "with migrations applied" do
       it "removes migration from the list of applied" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db, 1
         fake_migration db, 2
 
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(2)
         migrator.rollback(2, 1)
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
+
+        db.close
       end
 
       it "considers migration only once" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db, 1
         create_dummy db
 
@@ -493,10 +566,13 @@ describe Drift::Migrator do
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
         migrator.rollback(1, 1, 1, 1)
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(1)
+
+        db.close
       end
 
       it "executes migration down statements" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db, 1
         fake_migration db, 2
         create_dummy db
@@ -510,10 +586,13 @@ describe Drift::Migrator do
         migrator.rollback(2, 1)
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(2)
         db.scalar("SELECT MAX(value) FROM dummy;").as(Int64).should eq(20)
+
+        db.close
       end
 
       it "applies rollback within a transaction to avoid partial execution" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db, 1
         fake_migration db, 2
         create_dummy db
@@ -529,6 +608,8 @@ describe Drift::Migrator do
         end
         db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(2)
+
+        db.close
       end
     end
   end
@@ -536,26 +617,33 @@ describe Drift::Migrator do
   describe "#rollback_plan" do
     context "with no migration applied" do
       it "returns an empty list of migrations" do
-        _, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
 
         ids = migrator.rollback_plan
         ids.should be_empty
+
+        db.close
       end
     end
 
     context "dealing with batches" do
       it "returns the list of migrations in reverse order" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db, 1
         fake_migration db, 2
 
         ids = migrator.rollback_plan
         ids.should_not be_empty
         ids.should eq([2, 1])
+
+        db.close
       end
 
       it "returns only the list of migrations in the last batch" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db, 1, 1
         fake_migration db, 2, 1
         fake_migration db, 4, 2
@@ -563,16 +651,21 @@ describe Drift::Migrator do
         ids = migrator.rollback_plan
         ids.should_not be_empty
         ids.should eq([4])
+
+        db.close
       end
     end
 
     context "migrations not available locally" do
       it "excludes migrations not locally available" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db, 5
 
         ids = migrator.rollback_plan
         ids.should be_empty
+
+        db.close
       end
     end
   end
@@ -580,38 +673,48 @@ describe Drift::Migrator do
   describe "#reset_plan" do
     context "with no migration applied" do
       it "returns an empty list of migrations" do
-        _, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
 
         ids = migrator.reset_plan
         ids.should be_empty
+
+        db.close
       end
     end
 
     context "with a single batch" do
       it "returns a list of migrations in reverse order" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db, 1
         fake_migration db, 3
 
         ids = migrator.reset_plan
         ids.should_not be_empty
         ids.should eq([3, 1])
+
+        db.close
       end
 
       it "excludes migraitons not locally available" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db, 1
         fake_migration db, 5
 
         ids = migrator.reset_plan
         ids.should_not be_empty
         ids.should eq([1])
+
+        db.close
       end
     end
 
     context "with multiple batches" do
       it "returns list of migrations in reverse order" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db, 1, 1
         fake_migration db, 3, 1
         fake_migration db, 2, 2
@@ -620,25 +723,33 @@ describe Drift::Migrator do
         ids = migrator.reset_plan
         ids.should_not be_empty
         ids.should eq([4, 2, 3, 1])
+
+        db.close
       end
     end
   end
 
   describe "#pending?" do
     it "returns true when no migration was applied" do
-      _, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
 
       migrator.pending?.should be_true
+
+      db.close
     end
 
     it "returns false when all migrations were applied" do
-      db, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
       fake_migration db, 1
       fake_migration db, 2
       fake_migration db, 3
       fake_migration db, 4
 
       migrator.pending?.should be_false
+
+      db.close
     end
   end
 
@@ -650,23 +761,29 @@ describe Drift::Migrator do
 
         migrator.apply!
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(4)
+
+        db.close
       end
     end
 
     context "with no existing migration applied" do
       it "applies all available migrations as single batch" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
 
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
         migrator.apply!
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(4)
         db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(1)
+
+        db.close
       end
     end
 
     context "with existing batches" do
       it "applies pending migrations as new batch" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db, 1
         fake_migration db, 3
 
@@ -674,6 +791,8 @@ describe Drift::Migrator do
         migrator.apply!
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(4)
         db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(2)
+
+        db.close
       end
     end
   end
@@ -681,29 +800,36 @@ describe Drift::Migrator do
   describe "#reset!" do
     context "with no migration applied" do
       it "does nothing" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
 
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
         migrator.reset!
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
+
+        db.close
       end
     end
 
     context "with some applied migrations" do
       it "resets the migration status" do
-        db, migrator = prepared_migrator
+        db = memory_db
+        _, migrator = prepared_migrator(db)
         fake_migration db, 1
         fake_migration db, 3
 
         migrator.reset!
         db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
+
+        db.close
       end
     end
   end
 
   describe "(apply callback cycle)" do
     it "triggers before a migration is applied" do
-      _, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
 
       count = 0
       migrator.before_apply do |_|
@@ -712,10 +838,13 @@ describe Drift::Migrator do
 
       migrator.apply(1)
       count.should eq(1)
+
+      db.close
     end
 
     it "triggers after a migration has been applied" do
-      _, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
 
       count = 0
       migrator.after_apply do |_, _|
@@ -724,10 +853,13 @@ describe Drift::Migrator do
 
       migrator.apply(1)
       count.should eq(1)
+
+      db.close
     end
 
     it "triggers callbacks in sequence" do
-      _, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
 
       events = Array(Symbol).new
 
@@ -741,10 +873,13 @@ describe Drift::Migrator do
 
       migrator.apply(1)
       events.should eq([:before, :after])
+
+      db.close
     end
 
     it "does not trigger if migration is already applied" do
-      db, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
       fake_migration db, 1
 
       count = 0
@@ -758,12 +893,15 @@ describe Drift::Migrator do
 
       migrator.apply(1)
       count.should eq(0)
+
+      db.close
     end
   end
 
   describe "(rollback callback cycle)" do
     it "triggers before a migration is rolled back" do
-      db, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
       fake_migration db, 1
 
       count = 0
@@ -773,10 +911,13 @@ describe Drift::Migrator do
 
       migrator.rollback(1)
       count.should eq(1)
+
+      db.close
     end
 
     it "triggers after a migration has been rolled back" do
-      db, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
       fake_migration db, 1
 
       count = 0
@@ -786,10 +927,13 @@ describe Drift::Migrator do
 
       migrator.rollback(1)
       count.should eq(1)
+
+      db.close
     end
 
     it "triggers callbacks in sequence" do
-      db, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
       fake_migration db, 1
 
       events = Array(Symbol).new
@@ -803,10 +947,13 @@ describe Drift::Migrator do
 
       migrator.rollback(1)
       events.should eq([:before, :after])
+
+      db.close
     end
 
     it "does not trigger if migration is not applied" do
-      _, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
 
       count = 0
       migrator.before_apply do |_|
@@ -819,10 +966,13 @@ describe Drift::Migrator do
 
       migrator.rollback(1)
       count.should eq(0)
+
+      db.close
     end
 
     it "resets in the right order" do
-      db, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
       fake_migration db, 1, 1
       fake_migration db, 3, 1
       fake_migration db, 2, 2
@@ -843,18 +993,24 @@ describe Drift::Migrator do
       after_ids.size.should eq(4)
       before_ids.should eq([4, 2, 3, 1])
       after_ids.should eq([4, 2, 3, 1])
+
+      db.close
     end
   end
 
   describe "#applied" do
     it "returns an empty list when no migrations were applied" do
-      _, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
 
       migrator.applied.should be_empty
+
+      db.close
     end
 
     it "returns ordered list of applied migrations" do
-      db, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
       fake_migration db, 1
       fake_migration db, 2
 
@@ -864,10 +1020,13 @@ describe Drift::Migrator do
 
       mig1 = entries.first
       mig1.id.should eq(1)
+
+      db.close
     end
 
     it "returns only known applied migrations" do
-      db, migrator = prepared_migrator
+      db = memory_db
+      _, migrator = prepared_migrator(db)
       fake_migration db, 2
       fake_migration db, 5
 
@@ -876,6 +1035,8 @@ describe Drift::Migrator do
 
       mig2 = entries.first
       mig2.id.should eq(2)
+
+      db.close
     end
   end
 end
