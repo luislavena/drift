@@ -12,6 +12,10 @@ dependencies:
     github: crystal-lang/crystal-db
     version: ~> 0.14.0
 development_dependencies:
+  pg:
+    github: will/crystal-pg
+    # FIXME: lock until new crystal-pg release
+    commit: c5b8ac1ac5713fc58f974d8a4327887a0b297594
   sqlite3:
     github: crystal-lang/crystal-sqlite3
     version: ~> 0.22.0

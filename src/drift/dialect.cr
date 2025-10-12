@@ -36,6 +36,8 @@ module Drift
       case conn.class.name
       when .starts_with?("SQLite3")
         SQLite3.new
+      when .starts_with?("PG::")
+        PostgreSQL.new
       else
         raise UnsupportedDialectError.new("Unsupported database: #{conn.class.name}")
       end

@@ -14,6 +14,7 @@
 
 require "../spec_helper"
 
+require "pg"
 require "sqlite3"
 
 describe Drift::Dialect do
@@ -23,6 +24,15 @@ describe Drift::Dialect do
       dialect = Drift::Dialect.from_db(db)
 
       dialect.should be_a(Drift::Dialect::SQLite3)
+
+      db.close
+    end
+
+    it "detects PostgreSQL dialect" do
+      db = DB.open(ENV["POSTGRES_DB_URL"]? || "postgres://drift:drift@localhost:5432/drift")
+      dialect = Drift::Dialect.from_db(db)
+
+      dialect.should be_a(Drift::Dialect::PostgreSQL)
 
       db.close
     end
