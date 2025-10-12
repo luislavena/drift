@@ -44,11 +44,21 @@ private def memory_db
 end
 
 private def create_dummy(db)
-  db.exec("CREATE TABLE IF NOT EXISTS dummy (id INTEGER PRIMARY KEY NOT NULL, value INTEGER NOT NULL);")
+  case Drift::Dialect.from_db(db)
+  when Drift::Dialect::SQLite3
+    db.exec("CREATE TABLE IF NOT EXISTS dummy (id INTEGER PRIMARY KEY NOT NULL, value INTEGER NOT NULL);")
+  when Drift::Dialect::PostgreSQL
+    db.exec("CREATE TABLE IF NOT EXISTS dummy (id BIGSERIAL PRIMARY KEY NOT NULL, value BIGINT NOT NULL);")
+  end
 end
 
 private def fake_migration(db, id = 1, batch = 1)
-  db.exec("INSERT INTO drift_migrations (id, batch, applied_at, duration_ns) VALUES (?, ?, ?, ?);", id, batch, Time.utc, 100000)
+  case Drift::Dialect.from_db(db)
+  when Drift::Dialect::SQLite3
+    db.exec("INSERT INTO drift_migrations (id, batch, applied_at, duration_ns) VALUES (?, ?, ?, ?);", id, batch, Time.utc, 100000)
+  when Drift::Dialect::PostgreSQL
+    db.exec("INSERT INTO drift_migrations (id, batch, applied_at, duration_ns) VALUES ($1, $2, $3, $4);", id, batch, Time.utc, 100000)
+  end
 end
 
 private def sample_context
@@ -67,15 +77,14 @@ private def cleanup_tables(db)
   db.exec("DROP TABLE IF EXISTS dummy CASCADE;")
 end
 
-private def ready_migrator(db = memory_db)
+private def ready_migrator(db)
   ctx = sample_context
   migrator = Drift::Migrator.new(db, ctx)
 
   migrator
 end
 
-private def prepared_migrator
-  db = memory_db
+private def prepared_migrator(db)
   migrator = ready_migrator(db)
   migrator.prepare!
 
