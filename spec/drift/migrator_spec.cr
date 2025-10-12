@@ -184,269 +184,277 @@ describe Drift::Migrator do
     end
   end
 
-  describe "#applied?" do
-    it "returns false when migration was not applied" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
-
-      migrator.applied?(1).should be_false
-
-      db.close
-    end
-
-    it "returns true when migration was applied" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
-      fake_migration db
-
-      migrator.applied?(1).should be_true
-
-      db.close
-    end
-  end
-
-  describe "#applied_ids" do
-    it "returns an empty list when no migrations were applied" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
-
-      migrator.applied_ids.should be_empty
-
-      db.close
-    end
-
-    it "returns ordered list of applied migrations" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
-      fake_migration db, 1
-      fake_migration db, 2
-
-      ids = migrator.applied_ids
-      ids.should_not be_empty
-      ids.should eq([1, 2])
-
-      db.close
-    end
-
-    it "returns only known applied migrations" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
-      fake_migration db, 1
-      fake_migration db, 5
-
-      ids = migrator.applied_ids
-      ids.should_not be_empty
-      ids.should eq([1])
-
-      db.close
-    end
-  end
-
-  describe "#apply_plan" do
-    context "with no migration applied" do
-      it "returns a list of all migrations" do
-        db = memory_db
+  for_each_dialect do
+    describe "#applied?" do
+      it "returns false when migration was not applied" do
+        db = dialect_db.call
         _, migrator = prepared_migrator(db)
 
-        ids = migrator.apply_plan
-        ids.should_not be_empty
-        ids.should eq([1, 2, 3, 4])
+        migrator.applied?(1).should be_false
+
+        db.close
+      end
+
+      it "returns true when migration was applied" do
+        db = dialect_db.call
+        _, migrator = prepared_migrator(db)
+        fake_migration db
+
+        migrator.applied?(1).should be_true
 
         db.close
       end
     end
 
-    context "with some applied migrations" do
-      it "returns a list of non-applied migrations" do
-        db = memory_db
+    describe "#applied_ids" do
+      it "returns an empty list when no migrations were applied" do
+        db = dialect_db.call
+        _, migrator = prepared_migrator(db)
+
+        migrator.applied_ids.should be_empty
+
+        db.close
+      end
+
+      it "returns ordered list of applied migrations" do
+        db = dialect_db.call
         _, migrator = prepared_migrator(db)
         fake_migration db, 1
-        fake_migration db, 3
+        fake_migration db, 2
 
-        ids = migrator.apply_plan
+        ids = migrator.applied_ids
         ids.should_not be_empty
-        ids.should eq([2, 4])
+        ids.should eq([1, 2])
 
         db.close
       end
-    end
 
-    context "with applied migrations not locally available" do
-      it "returns the list of only local non-applied ones" do
-        db = memory_db
+      it "returns only known applied migrations" do
+        db = dialect_db.call
         _, migrator = prepared_migrator(db)
         fake_migration db, 1
         fake_migration db, 5
 
-        ids = migrator.apply_plan
-        ids.should eq([2, 3, 4])
+        ids = migrator.applied_ids
+        ids.should_not be_empty
+        ids.should eq([1])
 
         db.close
       end
     end
   end
 
-  describe "#apply(id)" do
-    context "with no existing migrations applied" do
-      it "records the migration was applied" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
+  for_each_dialect do
+    describe "#apply_plan" do
+      context "with no migration applied" do
+        it "returns a list of all migrations" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
 
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
-        migrator.apply(1)
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
+          ids = migrator.apply_plan
+          ids.should_not be_empty
+          ids.should eq([1, 2, 3, 4])
 
-        # id, batch, applied_at, duration_ns
-        result = db.query_one("SELECT id, batch, applied_at, duration_ns FROM drift_migrations WHERE id = ? LIMIT 1;", 1, as: MigrationEntry)
-
-        result.id.should eq(1)
-        result.batch.should eq(1)
-        result.applied_at.should be_close(Time.utc, 1.second)
-        result.duration_ns.should be <= 1.second.total_nanoseconds.to_i64
-
-        db.close
+          db.close
+        end
       end
 
-      it "applies migration only once" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        migrator.apply(1)
-        migrator.apply(1)
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
+      context "with some applied migrations" do
+        it "returns a list of non-applied migrations" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db, 1
+          fake_migration db, 3
 
-        db.close
+          ids = migrator.apply_plan
+          ids.should_not be_empty
+          ids.should eq([2, 4])
+
+          db.close
+        end
       end
 
-      it "executes migration statements" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        create_dummy db
+      context "with applied migrations not locally available" do
+        it "returns the list of only local non-applied ones" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db, 1
+          fake_migration db, 5
 
-        migration = migrator.context[1]
-        migration.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
+          ids = migrator.apply_plan
+          ids.should eq([2, 3, 4])
 
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
-        migrator.apply(1)
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(1)
-        db.scalar("SELECT MAX(value) FROM dummy;").as(Int64).should eq(10)
-
-        db.close
+          db.close
+        end
       end
+    end
+  end
 
-      it "applies migration within a transaction to avoid partial execution" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        create_dummy db
+  for_each_dialect do
+    describe "#apply(id)" do
+      context "with no existing migrations applied" do
+        it "records the migration was applied" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
 
-        migration = migrator.context[1]
-        migration.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
-        migration.add(:migrate, "INSERT INTO foo (value)")
-
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
-        expect_raises(Exception) do
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
           migrator.apply(1)
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
+
+          # id, batch, applied_at, duration_ns
+          result = db.query_one("SELECT id, batch, applied_at, duration_ns FROM drift_migrations WHERE id = ? LIMIT 1;", 1, as: MigrationEntry)
+
+          result.id.should eq(1)
+          result.batch.should eq(1)
+          result.applied_at.should be_close(Time.utc, 1.second)
+          result.duration_ns.should be <= 1.second.total_nanoseconds.to_i64
+
+          db.close
         end
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
 
-        db.close
+        it "applies migration only once" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          migrator.apply(1)
+          migrator.apply(1)
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
+
+          db.close
+        end
+
+        it "executes migration statements" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          create_dummy db
+
+          migration = migrator.context[1]
+          migration.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
+
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+          migrator.apply(1)
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(1)
+          db.scalar("SELECT MAX(value) FROM dummy;").as(Int64).should eq(10)
+
+          db.close
+        end
+
+        it "applies migration within a transaction to avoid partial execution" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          create_dummy db
+
+          migration = migrator.context[1]
+          migration.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
+          migration.add(:migrate, "INSERT INTO foo (value)")
+
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+          expect_raises(Exception) do
+            migrator.apply(1)
+          end
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
+
+          db.close
+        end
       end
-    end
 
-    context "with existing migrations applied" do
-      it "applies other migration as a new batch" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        migrator.apply(1)
-        db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(1)
+      context "with existing migrations applied" do
+        it "applies other migration as a new batch" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          migrator.apply(1)
+          db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(1)
 
-        migrator.apply(2)
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(2)
-        db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(2)
+          migrator.apply(2)
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(2)
+          db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(2)
 
-        db.close
+          db.close
+        end
       end
     end
   end
 
-  describe "#apply(ids)" do
-    context "with no migrations" do
-      it "applies multiple migrations as part of the same batch" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
+  for_each_dialect do
+    describe "#apply(ids)" do
+      context "with no migrations" do
+        it "applies multiple migrations as part of the same batch" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
 
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
-        migrator.apply(1, 3)
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(2)
-        db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(1)
-
-        db.close
-      end
-
-      it "ignores already applied migration from the list" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        fake_migration db
-        create_dummy db
-
-        m1 = migrator.context[1]
-        m1.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
-
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
-        migrator.apply(1, 3)
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(2)
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
-
-        db.close
-      end
-
-      it "increases batch number when executed multiple times for new migrations" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
-        migrator.apply(1, 2)
-        db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(1)
-        migrator.apply(3, 4)
-        db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(2)
-
-        db.close
-      end
-
-      it "applies all migrations as transaction to avoid partial execution" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        create_dummy db
-
-        m1 = migrator.context[1]
-        m1.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
-
-        m2 = migrator.context[3]
-        m2.add(:migrate, "INSERT INTO dummy (value) VALUES (20);")
-        m2.add(:migrate, "INSERT INTO foo (value)")
-
-        expect_raises(Exception) do
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
           migrator.apply(1, 3)
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(2)
+          db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(1)
+
+          db.close
         end
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
 
-        db.close
-      end
+        it "ignores already applied migration from the list" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db
+          create_dummy db
 
-      it "applies repeated migration in list only once" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        create_dummy db
+          m1 = migrator.context[1]
+          m1.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
 
-        migration = migrator.context[1]
-        migration.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
+          migrator.apply(1, 3)
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(2)
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
 
-        migrator.apply(1, 1, 1)
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
-        db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(1)
+          db.close
+        end
 
-        db.close
+        it "increases batch number when executed multiple times for new migrations" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
+          migrator.apply(1, 2)
+          db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(1)
+          migrator.apply(3, 4)
+          db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(2)
+
+          db.close
+        end
+
+        it "applies all migrations as transaction to avoid partial execution" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          create_dummy db
+
+          m1 = migrator.context[1]
+          m1.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
+
+          m2 = migrator.context[3]
+          m2.add(:migrate, "INSERT INTO dummy (value) VALUES (20);")
+          m2.add(:migrate, "INSERT INTO foo (value)")
+
+          expect_raises(Exception) do
+            migrator.apply(1, 3)
+          end
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
+
+          db.close
+        end
+
+        it "applies repeated migration in list only once" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          create_dummy db
+
+          migration = migrator.context[1]
+          migration.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
+
+          migrator.apply(1, 1, 1)
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
+          db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(1)
+
+          db.close
+        end
       end
     end
   end
