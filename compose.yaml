@@ -23,7 +23,8 @@ services:
       - .:/workspace/${COMPOSE_PROJECT_NAME}:cached
 
   mysql:
-    image: mysql:8-oracle
+    image: mysql:8.0-oracle
+    command: --default-authentication-plugin=mysql_native_password
     environment:
       MYSQL_DATABASE: drift_test
       MYSQL_USER: drift

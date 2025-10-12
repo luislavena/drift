@@ -14,6 +14,7 @@
 
 require "../spec_helper"
 
+require "mysql"
 require "pg"
 require "sqlite3"
 
@@ -25,6 +26,10 @@ DIALECTS = {
   },
   postgresql: {
     url:           ENV["POSTGRES_DB_URL"]? || "postgres://drift:drift@localhost:5432/drift_test",
+    needs_cleanup: true,
+  },
+  mysql: {
+    url:           ENV["MYSQL_DB_URL"]? || "mysql://drift:drift@localhost:3306/drift_test",
     needs_cleanup: true,
   },
 }
@@ -48,12 +53,14 @@ private def create_dummy(db)
     db.exec("CREATE TABLE IF NOT EXISTS dummy (id INTEGER PRIMARY KEY NOT NULL, value INTEGER NOT NULL);")
   when Drift::Dialect::PostgreSQL
     db.exec("CREATE TABLE IF NOT EXISTS dummy (id BIGSERIAL PRIMARY KEY NOT NULL, value BIGINT NOT NULL);")
+  when Drift::Dialect::MySQL
+    db.exec("CREATE TABLE IF NOT EXISTS dummy (id BIGINT PRIMARY KEY AUTO_INCREMENT NOT NULL, value BIGINT NOT NULL);")
   end
 end
 
 private def fake_migration(db, id = 1, batch = 1)
   case Drift::Dialect.from_db(db)
-  when Drift::Dialect::SQLite3
+  when Drift::Dialect::SQLite3, Drift::Dialect::MySQL
     db.exec("INSERT INTO drift_migrations (id, batch, applied_at, duration_ns) VALUES (?, ?, ?, ?);", id, batch, Time.utc, 100000)
   when Drift::Dialect::PostgreSQL
     db.exec("INSERT INTO drift_migrations (id, batch, applied_at, duration_ns) VALUES ($1, $2, $3, $4);", id, batch, Time.utc, 100000)
@@ -94,7 +101,8 @@ end
 macro for_each_dialect
   {% for name, config in DIALECTS %}
     {% skip_postgresql = env("SKIP_POSTGRESQL") == "true" %}
-    {% unless name.id == "postgresql" && skip_postgresql %}
+    {% skip_mysql = env("SKIP_MYSQL") == "true" %}
+    {% unless (name.id == "postgresql" && skip_postgresql) || (name.id == "mysql" && skip_mysql) %}
       describe "with {{ name.id }}" do
         # Proc to get a clean DB connection for this dialect
         dialect_db = ->() {

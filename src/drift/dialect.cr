@@ -34,7 +34,7 @@ module Drift
     # :ditto:
     def self.from_db(conn : DB::Connection) : Dialect
       case conn.class.name
-      when .starts_with?("MySQL::")
+      when .starts_with?("MySql::")
         MySQL.new
       when .starts_with?("PG::")
         PostgreSQL.new
