@@ -34,10 +34,12 @@ module Drift
     # :ditto:
     def self.from_db(conn : DB::Connection) : Dialect
       case conn.class.name
-      when .starts_with?("SQLite3")
-        SQLite3.new
+      when .starts_with?("MySQL::")
+        MySQL.new
       when .starts_with?("PG::")
         PostgreSQL.new
+      when .starts_with?("SQLite3")
+        SQLite3.new
       else
         raise UnsupportedDialectError.new("Unsupported database: #{conn.class.name}")
       end
