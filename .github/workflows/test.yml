@@ -30,6 +30,21 @@ jobs:
   test:
     runs-on: ubuntu-latest
     services:
+      mysql:
+        image: mysql:8.0-oracle
+        env:
+          MYSQL_DATABASE: drift_test
+          MYSQL_USER: drift
+          MYSQL_PASSWORD: drift
+          MYSQL_ROOT_PASSWORD: drift_root
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+          --default-authentication-plugin=mysql_native_password
+        ports:
+          - 3306:3306
       postgres:
         image: postgres:18-alpine
         env:
@@ -49,4 +64,5 @@ jobs:
       - run: shards install
       - run: crystal spec
         env:
+          MYSQL_DB_URL: mysql://drift:drift@localhost:3306/drift_test
           POSTGRES_DB_URL: postgres://drift:drift@localhost:5432/drift_test
