@@ -302,7 +302,7 @@ describe Drift::Migrator do
           db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(1)
 
           # id, batch, applied_at, duration_ns
-          result = db.query_one("SELECT id, batch, applied_at, duration_ns FROM drift_migrations WHERE id = ? LIMIT 1;", 1, as: MigrationEntry)
+          result = db.query_one("SELECT id, batch, applied_at, duration_ns FROM drift_migrations ORDER BY id ASC LIMIT 1;", as: MigrationEntry)
 
           result.id.should eq(1)
           result.batch.should eq(1)
@@ -345,7 +345,7 @@ describe Drift::Migrator do
 
           migration = migrator.context[1]
           migration.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
-          migration.add(:migrate, "INSERT INTO foo (value)")
+          migration.add(:migrate, "INSERT INTO foo (value);")
 
           db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
           expect_raises(Exception) do
@@ -515,7 +515,7 @@ describe Drift::Migrator do
 
           migration = migrator.context[1]
           migration.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
-          migration.add(:rollback, "INSERT INTO foo (value)")
+          migration.add(:rollback, "INSERT INTO foo (value);")
 
           db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
           expect_raises(Exception) do
@@ -609,7 +609,7 @@ describe Drift::Migrator do
           create_dummy db
 
           m1 = migrator.context[1]
-          m1.add(:rollback, "INSERT INTO foo (value)")
+          m1.add(:rollback, "INSERT INTO foo (value);")
           m2 = migrator.context[2]
           m2.add(:rollback, "INSERT INTO dummy (value) VALUES (10);")
 
