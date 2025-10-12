@@ -14,6 +14,7 @@
 
 require "../spec_helper"
 
+require "mysql"
 require "pg"
 require "sqlite3"
 
@@ -33,6 +34,15 @@ describe Drift::Dialect do
       dialect = Drift::Dialect.from_db(db)
 
       dialect.should be_a(Drift::Dialect::PostgreSQL)
+
+      db.close
+    end
+
+    it "detects MySQL dialect" do
+      db = DB.open(ENV["MYSQL_DB_URL"]? || "mysql://drift:drift@localhost:3306/drift_test")
+      dialect = Drift::Dialect.from_db(db)
+
+      dialect.should be_a(Drift::Dialect::MySQL)
 
       db.close
     end
