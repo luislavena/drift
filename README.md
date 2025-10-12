@@ -98,12 +98,13 @@ in reverse order using the information on the previously mentioned table.
 Drift CLI is a standalone, self-contained executable capable of connecting to
 the following databases (dialects):
 
+* MySQL
 * PostgreSQL
 * SQLite3
 
 Drift (as library) only depends on Crystal's
 [`db`](https://github.com/crystal-lang/crystal-db) common API. To use it with
-to specific adapters, you need to add the respective dependencies and require
+specific adapters, you need to add the respective dependencies and require
 them part of your application. See more about in the
 [library usage](#as-library-crystal-shard) section.
 
@@ -200,6 +201,20 @@ migrator.apply!
 db.close
 ```
 
+For a MySQL database:
+
+```crystal
+require "mysql"
+require "drift"
+
+db = DB.open "mysql://user:password@localhost/dbname"
+
+migrator = Drift::Migrator.from_path(db, "database/migrations")
+migrator.apply!
+
+db.close
+```
+
 Or for a PostgreSQL database:
 
 ```crystal
@@ -267,6 +282,32 @@ bundling all the migrations found in `database/migrations` directory.
 
 When using classes or modules, you can also define instance or class methods
 by prepending `self.` to the method name to use by Drift.
+
+## Development
+
+### Running tests
+
+By default, tests run against all supported databases (MySQL, PostgreSQL,
+SQLite3).
+
+To skip specific databases:
+
+```console
+$ SKIP_MYSQL=true crystal spec        # Skip MySQL tests
+$ SKIP_POSTGRESQL=true crystal spec   # Skip PostgreSQL tests
+```
+
+Start database services with Docker Compose:
+
+```console
+$ docker compose up -d mysql postgres
+```
+
+Stop database services:
+
+```console
+$ docker compose down
+```
 
 ## Contribution policy
 
