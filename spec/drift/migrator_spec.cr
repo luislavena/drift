@@ -14,19 +14,18 @@
 
 require "../spec_helper"
 
+require "pg"
 require "sqlite3"
 
 # Configuration for dialects to test
 DIALECTS = {
   sqlite3: {
-    url: ENV["SQLITE3_DB_URL"]? || "sqlite3:%3Amemory%3A",
+    url:           ENV["SQLITE3_DB_URL"]? || "sqlite3:%3Amemory%3A",
     needs_cleanup: false,
-    skip: false,
   },
   postgresql: {
-    url: ENV["POSTGRES_DB_URL"]? || "postgres://drift:drift@localhost:5432/drift_test",
+    url:           ENV["POSTGRES_DB_URL"]? || "postgres://drift:drift@localhost:5432/drift_test",
     needs_cleanup: true,
-    skip: ENV["SKIP_POSTGRESQL"]? == "true",
   },
 }
 
@@ -94,7 +93,8 @@ end
 # Macro to run tests for each dialect
 macro for_each_dialect
   {% for name, config in DIALECTS %}
-    {% unless config[:skip] %}
+    {% skip_postgresql = env("SKIP_POSTGRESQL") == "true" %}
+    {% unless name.id == "postgresql" && skip_postgresql %}
       describe "with {{ name.id }}" do
         # Proc to get a clean DB connection for this dialect
         dialect_db = ->() {
@@ -626,429 +626,437 @@ describe Drift::Migrator do
     end
   end
 
-  describe "#rollback_plan" do
-    context "with no migration applied" do
-      it "returns an empty list of migrations" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
+  for_each_dialect do
+    describe "#rollback_plan" do
+      context "with no migration applied" do
+        it "returns an empty list of migrations" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
 
-        ids = migrator.rollback_plan
-        ids.should be_empty
+          ids = migrator.rollback_plan
+          ids.should be_empty
 
-        db.close
+          db.close
+        end
+      end
+
+      context "dealing with batches" do
+        it "returns the list of migrations in reverse order" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db, 1
+          fake_migration db, 2
+
+          ids = migrator.rollback_plan
+          ids.should_not be_empty
+          ids.should eq([2, 1])
+
+          db.close
+        end
+
+        it "returns only the list of migrations in the last batch" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db, 1, 1
+          fake_migration db, 2, 1
+          fake_migration db, 4, 2
+
+          ids = migrator.rollback_plan
+          ids.should_not be_empty
+          ids.should eq([4])
+
+          db.close
+        end
+      end
+
+      context "migrations not available locally" do
+        it "excludes migrations not locally available" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db, 5
+
+          ids = migrator.rollback_plan
+          ids.should be_empty
+
+          db.close
+        end
       end
     end
 
-    context "dealing with batches" do
-      it "returns the list of migrations in reverse order" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        fake_migration db, 1
-        fake_migration db, 2
+    describe "#reset_plan" do
+      context "with no migration applied" do
+        it "returns an empty list of migrations" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
 
-        ids = migrator.rollback_plan
-        ids.should_not be_empty
-        ids.should eq([2, 1])
+          ids = migrator.reset_plan
+          ids.should be_empty
 
-        db.close
+          db.close
+        end
       end
 
-      it "returns only the list of migrations in the last batch" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        fake_migration db, 1, 1
-        fake_migration db, 2, 1
-        fake_migration db, 4, 2
+      context "with a single batch" do
+        it "returns a list of migrations in reverse order" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db, 1
+          fake_migration db, 3
 
-        ids = migrator.rollback_plan
-        ids.should_not be_empty
-        ids.should eq([4])
+          ids = migrator.reset_plan
+          ids.should_not be_empty
+          ids.should eq([3, 1])
 
-        db.close
+          db.close
+        end
+
+        it "excludes migraitons not locally available" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db, 1
+          fake_migration db, 5
+
+          ids = migrator.reset_plan
+          ids.should_not be_empty
+          ids.should eq([1])
+
+          db.close
+        end
       end
-    end
 
-    context "migrations not available locally" do
-      it "excludes migrations not locally available" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        fake_migration db, 5
+      context "with multiple batches" do
+        it "returns list of migrations in reverse order" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db, 1, 1
+          fake_migration db, 3, 1
+          fake_migration db, 2, 2
+          fake_migration db, 4, 2
 
-        ids = migrator.rollback_plan
-        ids.should be_empty
+          ids = migrator.reset_plan
+          ids.should_not be_empty
+          ids.should eq([4, 2, 3, 1])
 
-        db.close
+          db.close
+        end
       end
     end
   end
 
-  describe "#reset_plan" do
-    context "with no migration applied" do
-      it "returns an empty list of migrations" do
-        db = memory_db
+  for_each_dialect do
+    describe "#pending?" do
+      it "returns true when no migration was applied" do
+        db = dialect_db.call
         _, migrator = prepared_migrator(db)
 
-        ids = migrator.reset_plan
-        ids.should be_empty
+        migrator.pending?.should be_true
 
         db.close
       end
-    end
 
-    context "with a single batch" do
-      it "returns a list of migrations in reverse order" do
-        db = memory_db
+      it "returns false when all migrations were applied" do
+        db = dialect_db.call
         _, migrator = prepared_migrator(db)
         fake_migration db, 1
+        fake_migration db, 2
         fake_migration db, 3
+        fake_migration db, 4
 
-        ids = migrator.reset_plan
-        ids.should_not be_empty
-        ids.should eq([3, 1])
-
-        db.close
-      end
-
-      it "excludes migraitons not locally available" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        fake_migration db, 1
-        fake_migration db, 5
-
-        ids = migrator.reset_plan
-        ids.should_not be_empty
-        ids.should eq([1])
+        migrator.pending?.should be_false
 
         db.close
       end
     end
 
-    context "with multiple batches" do
-      it "returns list of migrations in reverse order" do
-        db = memory_db
+    describe "#apply!" do
+      context "with completely empty database" do
+        it "prepares the migration table and applies migrations" do
+          db = dialect_db.call
+          migrator = ready_migrator(db)
+
+          migrator.apply!
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(4)
+
+          db.close
+        end
+      end
+
+      context "with no existing migration applied" do
+        it "applies all available migrations as single batch" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
+          migrator.apply!
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(4)
+          db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(1)
+
+          db.close
+        end
+      end
+
+      context "with existing batches" do
+        it "applies pending migrations as new batch" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db, 1
+          fake_migration db, 3
+
+          db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(1)
+          migrator.apply!
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(4)
+          db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(2)
+
+          db.close
+        end
+      end
+    end
+
+    describe "#reset!" do
+      context "with no migration applied" do
+        it "does nothing" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
+          migrator.reset!
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
+
+          db.close
+        end
+      end
+
+      context "with some applied migrations" do
+        it "resets the migration status" do
+          db = dialect_db.call
+          _, migrator = prepared_migrator(db)
+          fake_migration db, 1
+          fake_migration db, 3
+
+          migrator.reset!
+          db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
+
+          db.close
+        end
+      end
+    end
+  end
+
+  for_each_dialect do
+    describe "(apply callback cycle)" do
+      it "triggers before a migration is applied" do
+        db = dialect_db.call
+        _, migrator = prepared_migrator(db)
+
+        count = 0
+        migrator.before_apply do |_|
+          count += 1
+        end
+
+        migrator.apply(1)
+        count.should eq(1)
+
+        db.close
+      end
+
+      it "triggers after a migration has been applied" do
+        db = dialect_db.call
+        _, migrator = prepared_migrator(db)
+
+        count = 0
+        migrator.after_apply do |_, _|
+          count += 1
+        end
+
+        migrator.apply(1)
+        count.should eq(1)
+
+        db.close
+      end
+
+      it "triggers callbacks in sequence" do
+        db = dialect_db.call
+        _, migrator = prepared_migrator(db)
+
+        events = Array(Symbol).new
+
+        migrator.before_apply do |_|
+          events.push :before
+        end
+
+        migrator.after_apply do |_, _|
+          events.push :after
+        end
+
+        migrator.apply(1)
+        events.should eq([:before, :after])
+
+        db.close
+      end
+
+      it "does not trigger if migration is already applied" do
+        db = dialect_db.call
+        _, migrator = prepared_migrator(db)
+        fake_migration db, 1
+
+        count = 0
+        migrator.before_apply do |_|
+          count += 1
+        end
+
+        migrator.after_apply do |_, _|
+          count += 1
+        end
+
+        migrator.apply(1)
+        count.should eq(0)
+
+        db.close
+      end
+    end
+
+    describe "(rollback callback cycle)" do
+      it "triggers before a migration is rolled back" do
+        db = dialect_db.call
+        _, migrator = prepared_migrator(db)
+        fake_migration db, 1
+
+        count = 0
+        migrator.before_rollback do |_|
+          count += 1
+        end
+
+        migrator.rollback(1)
+        count.should eq(1)
+
+        db.close
+      end
+
+      it "triggers after a migration has been rolled back" do
+        db = dialect_db.call
+        _, migrator = prepared_migrator(db)
+        fake_migration db, 1
+
+        count = 0
+        migrator.after_rollback do |_, _|
+          count += 1
+        end
+
+        migrator.rollback(1)
+        count.should eq(1)
+
+        db.close
+      end
+
+      it "triggers callbacks in sequence" do
+        db = dialect_db.call
+        _, migrator = prepared_migrator(db)
+        fake_migration db, 1
+
+        events = Array(Symbol).new
+        migrator.before_rollback do |_|
+          events.push :before
+        end
+
+        migrator.after_rollback do |_, _|
+          events.push :after
+        end
+
+        migrator.rollback(1)
+        events.should eq([:before, :after])
+
+        db.close
+      end
+
+      it "does not trigger if migration is not applied" do
+        db = dialect_db.call
+        _, migrator = prepared_migrator(db)
+
+        count = 0
+        migrator.before_apply do |_|
+          count += 1
+        end
+
+        migrator.after_apply do |_, _|
+          count += 1
+        end
+
+        migrator.rollback(1)
+        count.should eq(0)
+
+        db.close
+      end
+
+      it "resets in the right order" do
+        db = dialect_db.call
         _, migrator = prepared_migrator(db)
         fake_migration db, 1, 1
         fake_migration db, 3, 1
         fake_migration db, 2, 2
         fake_migration db, 4, 2
 
-        ids = migrator.reset_plan
-        ids.should_not be_empty
-        ids.should eq([4, 2, 3, 1])
+        before_ids = Array(Int64).new
+        migrator.before_rollback do |id|
+          before_ids.push id
+        end
 
-        db.close
-      end
-    end
-  end
-
-  describe "#pending?" do
-    it "returns true when no migration was applied" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
-
-      migrator.pending?.should be_true
-
-      db.close
-    end
-
-    it "returns false when all migrations were applied" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
-      fake_migration db, 1
-      fake_migration db, 2
-      fake_migration db, 3
-      fake_migration db, 4
-
-      migrator.pending?.should be_false
-
-      db.close
-    end
-  end
-
-  describe "#apply!" do
-    context "with completely empty database" do
-      it "prepares the migration table and applies migrations" do
-        db = memory_db
-        migrator = ready_migrator(db)
-
-        migrator.apply!
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(4)
-
-        db.close
-      end
-    end
-
-    context "with no existing migration applied" do
-      it "applies all available migrations as single batch" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
-        migrator.apply!
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(4)
-        db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(1)
-
-        db.close
-      end
-    end
-
-    context "with existing batches" do
-      it "applies pending migrations as new batch" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        fake_migration db, 1
-        fake_migration db, 3
-
-        db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(1)
-        migrator.apply!
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(4)
-        db.scalar("SELECT MAX(batch) FROM drift_migrations;").as(Int64).should eq(2)
-
-        db.close
-      end
-    end
-  end
-
-  describe "#reset!" do
-    context "with no migration applied" do
-      it "does nothing" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
-        migrator.reset!
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
-
-        db.close
-      end
-    end
-
-    context "with some applied migrations" do
-      it "resets the migration status" do
-        db = memory_db
-        _, migrator = prepared_migrator(db)
-        fake_migration db, 1
-        fake_migration db, 3
+        after_ids = Array(Int64).new
+        migrator.after_rollback do |id, _|
+          after_ids.push id
+        end
 
         migrator.reset!
-        db.scalar("SELECT COUNT(id) FROM drift_migrations;").as(Int64).should eq(0)
+        before_ids.size.should eq(4)
+        after_ids.size.should eq(4)
+        before_ids.should eq([4, 2, 3, 1])
+        after_ids.should eq([4, 2, 3, 1])
 
         db.close
       end
     end
   end
 
-  describe "(apply callback cycle)" do
-    it "triggers before a migration is applied" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
+  for_each_dialect do
+    describe "#applied" do
+      it "returns an empty list when no migrations were applied" do
+        db = dialect_db.call
+        _, migrator = prepared_migrator(db)
 
-      count = 0
-      migrator.before_apply do |_|
-        count += 1
+        migrator.applied.should be_empty
+
+        db.close
       end
 
-      migrator.apply(1)
-      count.should eq(1)
+      it "returns ordered list of applied migrations" do
+        db = dialect_db.call
+        _, migrator = prepared_migrator(db)
+        fake_migration db, 1
+        fake_migration db, 2
 
-      db.close
-    end
+        entries = migrator.applied
+        entries.should_not be_empty
+        entries.size.should eq(2)
 
-    it "triggers after a migration has been applied" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
+        mig1 = entries.first
+        mig1.id.should eq(1)
 
-      count = 0
-      migrator.after_apply do |_, _|
-        count += 1
+        db.close
       end
 
-      migrator.apply(1)
-      count.should eq(1)
+      it "returns only known applied migrations" do
+        db = dialect_db.call
+        _, migrator = prepared_migrator(db)
+        fake_migration db, 2
+        fake_migration db, 5
 
-      db.close
-    end
+        entries = migrator.applied
+        entries.size.should eq(1)
 
-    it "triggers callbacks in sequence" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
+        mig2 = entries.first
+        mig2.id.should eq(2)
 
-      events = Array(Symbol).new
-
-      migrator.before_apply do |_|
-        events.push :before
+        db.close
       end
-
-      migrator.after_apply do |_, _|
-        events.push :after
-      end
-
-      migrator.apply(1)
-      events.should eq([:before, :after])
-
-      db.close
-    end
-
-    it "does not trigger if migration is already applied" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
-      fake_migration db, 1
-
-      count = 0
-      migrator.before_apply do |_|
-        count += 1
-      end
-
-      migrator.after_apply do |_, _|
-        count += 1
-      end
-
-      migrator.apply(1)
-      count.should eq(0)
-
-      db.close
-    end
-  end
-
-  describe "(rollback callback cycle)" do
-    it "triggers before a migration is rolled back" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
-      fake_migration db, 1
-
-      count = 0
-      migrator.before_rollback do |_|
-        count += 1
-      end
-
-      migrator.rollback(1)
-      count.should eq(1)
-
-      db.close
-    end
-
-    it "triggers after a migration has been rolled back" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
-      fake_migration db, 1
-
-      count = 0
-      migrator.after_rollback do |_, _|
-        count += 1
-      end
-
-      migrator.rollback(1)
-      count.should eq(1)
-
-      db.close
-    end
-
-    it "triggers callbacks in sequence" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
-      fake_migration db, 1
-
-      events = Array(Symbol).new
-      migrator.before_rollback do |_|
-        events.push :before
-      end
-
-      migrator.after_rollback do |_, _|
-        events.push :after
-      end
-
-      migrator.rollback(1)
-      events.should eq([:before, :after])
-
-      db.close
-    end
-
-    it "does not trigger if migration is not applied" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
-
-      count = 0
-      migrator.before_apply do |_|
-        count += 1
-      end
-
-      migrator.after_apply do |_, _|
-        count += 1
-      end
-
-      migrator.rollback(1)
-      count.should eq(0)
-
-      db.close
-    end
-
-    it "resets in the right order" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
-      fake_migration db, 1, 1
-      fake_migration db, 3, 1
-      fake_migration db, 2, 2
-      fake_migration db, 4, 2
-
-      before_ids = Array(Int64).new
-      migrator.before_rollback do |id|
-        before_ids.push id
-      end
-
-      after_ids = Array(Int64).new
-      migrator.after_rollback do |id, _|
-        after_ids.push id
-      end
-
-      migrator.reset!
-      before_ids.size.should eq(4)
-      after_ids.size.should eq(4)
-      before_ids.should eq([4, 2, 3, 1])
-      after_ids.should eq([4, 2, 3, 1])
-
-      db.close
-    end
-  end
-
-  describe "#applied" do
-    it "returns an empty list when no migrations were applied" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
-
-      migrator.applied.should be_empty
-
-      db.close
-    end
-
-    it "returns ordered list of applied migrations" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
-      fake_migration db, 1
-      fake_migration db, 2
-
-      entries = migrator.applied
-      entries.should_not be_empty
-      entries.size.should eq(2)
-
-      mig1 = entries.first
-      mig1.id.should eq(1)
-
-      db.close
-    end
-
-    it "returns only known applied migrations" do
-      db = memory_db
-      _, migrator = prepared_migrator(db)
-      fake_migration db, 2
-      fake_migration db, 5
-
-      entries = migrator.applied
-      entries.size.should eq(1)
-
-      mig2 = entries.first
-      mig2.id.should eq(2)
-
-      db.close
     end
   end
 end
