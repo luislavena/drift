@@ -82,6 +82,26 @@ private def prepared_migrator
   {db, migrator}
 end
 
+# Macro to run tests for each dialect
+macro for_each_dialect
+  {% for name, config in DIALECTS %}
+    {% unless config[:skip] %}
+      describe "with {{ name.id }}" do
+        # Proc to get a clean DB connection for this dialect
+        dialect_db = ->() {
+          db = DB.open({{ config[:url] }})
+          {% if config[:needs_cleanup] %}
+            cleanup_tables(db)
+          {% end %}
+          db
+        }
+
+        {{ yield }}
+      end
+    {% end %}
+  {% end %}
+end
+
 describe Drift::Migrator do
   describe ".new" do
     it "reuses an existing context" do
