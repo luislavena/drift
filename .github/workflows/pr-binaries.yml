@@ -1,0 +1,162 @@
+name: PR Binaries
+
+on:
+  workflow_dispatch:
+
+# Prevent multiple runs on the same branch
+concurrency:
+  group: pr-binaries-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-pr:
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.find_pr.outputs.pr_number }}
+    steps:
+      - name: Find PR for this branch
+        id: find_pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = context.ref.replace('refs/heads/', '');
+
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${branch}`,
+              state: 'open'
+            });
+
+            if (pulls.length === 0) {
+              core.setFailed(`No open PR found for branch: ${branch}`);
+              return;
+            }
+
+            const prNumber = pulls[0].number;
+            core.setOutput('pr_number', prNumber);
+            core.info(`Found PR #${prNumber} for branch ${branch}`);
+
+  setup:
+    needs: [detect-pr]
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.latest_version.outputs.version }}
+    env:
+      PR_NUMBER: ${{ needs.detect-pr.outputs.pr_number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set build numbers
+        run: |
+          LAST_TAG=$(git tag --sort=-version:refname | head -1)
+          echo "DRIFT_BUILD=$(git rev-list --count $LAST_TAG..HEAD)" >> $GITHUB_ENV
+          echo "DRIFT_COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: Build prerelease version
+        uses: miniscruff/changie-action@v2
+        with:
+          args: batch auto --prerelease dev.${{ env.DRIFT_BUILD }}.${{ env.DRIFT_COMMIT }}.pr${{ env.PR_NUMBER }}
+
+      - name: Merge changes
+        uses: miniscruff/changie-action@v2
+        with:
+          args: merge
+
+      - name: Get latest version
+        id: changie_latest
+        uses: miniscruff/changie-action@v2
+        with:
+          args: latest --remove-prefix
+
+      - name: Export version
+        id: latest_version
+        run: |
+          echo "version=${{ steps.changie_latest.outputs.output }}" >> $GITHUB_OUTPUT
+
+  build:
+    needs: [detect-pr, setup]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform:
+          - x86_64-linux-musl
+          - aarch64-linux-musl
+          - aarch64-apple-darwin
+    env:
+      PR_NUMBER: ${{ needs.detect-pr.outputs.pr_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: patch shard.yml version
+        env:
+          DRIFT_VERSION: ${{ needs.setup.outputs.version }}
+        run: |
+          sed -i "s/^version: .*/version: $DRIFT_VERSION/" shard.yml
+
+      - uses: docker://ghcr.io/luislavena/hydrofoil-crystal:1.16
+        with:
+          args: sh -c "shards check || shards install --skip-postinstall --skip-executables"
+
+      - name: Build for ${{ matrix.platform }}
+        uses: docker://ghcr.io/luislavena/crystal-xbuild:tip
+        with:
+          entrypoint: xbuild
+          args: src/cli.cr drift ${{ matrix.platform }}
+
+      - name: Create tarball
+        run: |
+          tar -czf drift-pr-${{ env.PR_NUMBER }}-${{ matrix.platform }}.tar.gz -C build/${{ matrix.platform }} drift
+
+      - name: Upload tarball artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-binary-${{ matrix.platform }}
+          path: |
+            drift-pr-${{ env.PR_NUMBER }}-${{ matrix.platform }}.tar.gz
+
+  comment:
+    needs: [detect-pr, build]
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    env:
+      PR_NUMBER: ${{ needs.detect-pr.outputs.pr_number }}
+    steps:
+      - name: Post PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = process.env.PR_NUMBER;
+            const runId = context.runId;
+            const sha = context.sha.substring(0, 7);
+            const actor = context.actor;
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
+
+            const platforms = [
+              'x86_64-linux-musl',
+              'aarch64-linux-musl',
+              'aarch64-apple-darwin'
+            ];
+
+            const downloadLinks = platforms.map(platform => {
+              const artifactUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
+              return `- [${platform}](${artifactUrl}) - \`drift-pr-${prNumber}-${platform}.tar.gz\``;
+            }).join('\n');
+
+            const comment = `## Preview Binaries - Build #${context.runNumber}
+
+            Built from commit \`${sha}\` by @${actor}
+
+            **Downloads:**
+            ${downloadLinks}
+
+            **Note:** These artifacts will expire in 90 days. [View build logs](${runUrl})`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: comment
+            });
