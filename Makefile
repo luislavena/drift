@@ -1,7 +1,7 @@
 PROJECT_NAME := $(shell awk '/^name:/ {print $$2}' shard.yml)
 PROJECT_VERSION := $(shell awk '/^version:/ {print $$2}' shard.yml)
 
-CRYSTAL_VERSION := 1.16
+CRYSTAL_VERSION := 1.19
 FIXUID ?= $(shell id -u)
 FIXGID ?= $(shell id -g)
 
