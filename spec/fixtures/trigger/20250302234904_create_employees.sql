@@ -1,4 +1,4 @@
--- drift:migrate
+-- drift:up
 CREATE TABLE IF NOT EXISTS employees (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
@@ -8,5 +8,5 @@ CREATE TABLE IF NOT EXISTS employees (
     last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- drift:rollback
+-- drift:down
 DROP TABLE IF EXISTS employees;

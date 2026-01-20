@@ -29,23 +29,23 @@ against a database. This applies to both [the CLI](#as-tool-cli) and
 [the library](#as-library-crystal-shard) (Crystal shard).
 
 Each migration file must contain two special comments before any SQL
-statements: `drift:migrate` to indicate that the following statements should
-be executed when migrating and `drift:rollback` to indicate the statements
+statements: `drift:up` to indicate that the following statements should
+be executed when migrating and `drift:down` to indicate the statements
 should be executed when rolling back the migration.
 
-Each type (migrate, rollback) within the file can contain multiple SQL
+Each type (up, down) within the file can contain multiple SQL
 statements. Statements can span multiple lines, but all must be properly
 terminated using `;`.
 
 ```sql
--- drift:migrate
+-- drift:up
 CREATE TABLE users (
   id INTEGER PRIMARY KEY,
   name TEXT,
   phone TEXT
 );
 
--- drift:rollback
+-- drift:down
 DROP TABLE IF EXISTS users;
 ```
 
@@ -54,7 +54,7 @@ For complex SQL statements that include semicolons within the statement itself
 `-- drift:begin` and `-- drift:end` to wrap the entire statement:
 
 ```sql
--- drift:migrate
+-- drift:up
 -- drift:begin
 CREATE TRIGGER update_timestamp AFTER
 UPDATE ON users BEGIN
@@ -72,7 +72,7 @@ VALUES
 END;
 -- drift:end
 
--- drift:rollback
+-- drift:down
 DROP TRIGGER IF EXISTS update_timestamp;
 ```
 
