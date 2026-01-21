@@ -37,12 +37,30 @@ module Drift
           CREATE TABLE IF NOT EXISTS drift_migrations (
             id BIGINT PRIMARY KEY NOT NULL,
             batch BIGINT NOT NULL,
-            applied_at TIMESTAMP NOT NULL,
+            applied_at DATETIME NOT NULL,
             duration_ns BIGINT NOT NULL
           );
           SQL
 
+        sql_check_index = <<-SQL
+          SELECT
+            COUNT(*)
+          FROM
+            INFORMATION_SCHEMA.STATISTICS
+          WHERE
+            TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'drift_migrations'
+            AND INDEX_NAME = 'idx_drift_migrations_batch';
+          SQL
+
+        sql_create_index = <<-SQL
+          CREATE INDEX idx_drift_migrations_batch ON drift_migrations(batch);
+          SQL
+
         conn.exec(sql_create_schema)
+        if conn.query_one(sql_check_index, as: Int64) == 0
+          conn.exec(sql_create_index)
+        end
       end
 
       def find_migration_id(conn : DB::Connection, id : Int64) : Int64?

@@ -42,7 +42,12 @@ module Drift
           );
           SQL
 
+        sql_create_index = <<-SQL
+          CREATE INDEX IF NOT EXISTS idx_drift_migrations_batch ON drift_migrations(batch);
+          SQL
+
         conn.exec(sql_create_schema)
+        conn.exec(sql_create_index)
       end
 
       def find_migration_id(conn : DB::Connection, id : Int64) : Int64?
