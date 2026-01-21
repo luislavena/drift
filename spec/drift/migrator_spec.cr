@@ -718,7 +718,7 @@ describe Drift::Migrator do
           db.close
         end
 
-        it "excludes migraitons not locally available" do
+        it "excludes migrations not locally available" do
           db = dialect_db.call
           _, migrator = prepared_migrator(db)
           fake_migration db, 1
