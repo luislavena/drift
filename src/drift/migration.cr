@@ -16,8 +16,8 @@ module Drift
   class Migration
     # :nodoc:
     enum Type
-      Migrate
-      Rollback
+      Up
+      Down
     end
 
     # :nodoc:
@@ -54,17 +54,32 @@ module Drift
       buffer = IO::Memory.new
       type = nil
       multi_statement_mode = false
+      deprecated_warning_shown = false
 
       io.each_line do |line|
         stripped_line = line.strip
         # detect markers
         if stripped_line.starts_with?(MAGIC_MARKER)
           case stripped_line[MAGIC_MARKER.size..-1]
+          when "up"
+            type = Type::Up
+            next
+          when "down"
+            type = Type::Down
+            next
           when "migrate"
-            type = Type::Migrate
+            unless deprecated_warning_shown
+              STDERR.puts "DEPRECATED: 'drift:migrate' marker in '#{filename || id}' is deprecated, use 'drift:up' instead"
+              deprecated_warning_shown = true
+            end
+            type = Type::Up
             next
           when "rollback"
-            type = Type::Rollback
+            unless deprecated_warning_shown
+              STDERR.puts "DEPRECATED: 'drift:rollback' marker in '#{filename || id}' is deprecated, use 'drift:down' instead"
+              deprecated_warning_shown = true
+            end
+            type = Type::Down
             next
           when "begin"
             multi_statement_mode = true

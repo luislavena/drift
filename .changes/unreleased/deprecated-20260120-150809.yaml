@@ -1,0 +1,5 @@
+kind: deprecated
+body: Replace migrate/rollback markers with up/down
+time: 2026-01-20T15:08:09.547367-03:00
+custom:
+    Issue: ""

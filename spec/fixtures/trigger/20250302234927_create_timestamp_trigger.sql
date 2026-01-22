@@ -1,4 +1,4 @@
--- drift:migrate
+-- drift:up
 -- drift:begin
 CREATE TRIGGER update_timestamp AFTER
 UPDATE ON employees BEGIN
@@ -16,5 +16,5 @@ VALUES
 END;
 -- drift:end
 
--- drift:rollback
+-- drift:down
 DROP TRIGGER IF EXISTS update_timestamp;

@@ -20,6 +20,23 @@ private def memory_db
   DB.connect("sqlite3:%3Amemory%3A")
 end
 
+private def capture_stderr(&)
+  tempfile = File.tempfile("stderr")
+  original_stderr = STDERR.dup
+  STDERR.reopen(tempfile)
+  begin
+    yield
+  ensure
+    STDERR.flush
+    STDERR.reopen(original_stderr)
+  end
+  tempfile.rewind
+  content = tempfile.gets_to_end
+  tempfile.close
+  tempfile.delete
+  content
+end
+
 describe Drift::Migration do
   describe ".new" do
     it "accepts an optional filename" do
@@ -32,15 +49,15 @@ describe Drift::Migration do
 
     it "accepts multiple statements on each direction" do
       migration = Drift::Migration.new(1)
-      migration.add(:migrate, "SELECT 1 AS one;")
-      migration.add(:migrate, "SELECT 2 AS two;")
-      migration.add(:rollback, "SELECT 3 AS three;")
+      migration.add(:up, "SELECT 1 AS one;")
+      migration.add(:up, "SELECT 2 AS two;")
+      migration.add(:down, "SELECT 3 AS three;")
 
-      migration.statements_for(:migrate).size.should eq(2)
-      migration.statements_for(:migrate).first.should eq("SELECT 1 AS one;")
+      migration.statements_for(:up).size.should eq(2)
+      migration.statements_for(:up).first.should eq("SELECT 1 AS one;")
 
-      migration.statements_for(:rollback).size.should eq(1)
-      migration.statements_for(:rollback).first.should eq("SELECT 3 AS three;")
+      migration.statements_for(:down).size.should eq(1)
+      migration.statements_for(:down).first.should eq("SELECT 3 AS three;")
     end
   end
 
@@ -58,13 +75,13 @@ describe Drift::Migration do
     context "(magic comments)" do
       it "parses statement on a given type" do
         data = <<-SQL
-          -- drift:migrate
+          -- drift:up
           SELECT 1;
           SQL
 
         migration = Drift::Migration.from_io(data, 1)
-        migration.statements_for(:migrate).size.should eq(1)
-        migration.statements_for(:migrate).first.should eq("SELECT 1;")
+        migration.statements_for(:up).size.should eq(1)
+        migration.statements_for(:up).first.should eq("SELECT 1;")
       end
 
       it "ignores statements without indicated type" do
@@ -73,25 +90,25 @@ describe Drift::Migration do
           SQL
 
         migration = Drift::Migration.from_io(contents, 1)
-        migration.statements_for(:migrate).should be_empty
-        migration.statements_for(:rollback).should be_empty
+        migration.statements_for(:up).should be_empty
+        migration.statements_for(:down).should be_empty
       end
 
       it "recognizes multiple statements of any type" do
         data = <<-SQL
-          -- drift:migrate
+          -- drift:up
           SELECT 1;
           SELECT 2;
 
-          -- drift:rollback
+          -- drift:down
           SELECT 3;
           SQL
 
         migration = Drift::Migration.from_io(data, 1)
-        migrate_statements = migration.statements_for(:migrate)
+        migrate_statements = migration.statements_for(:up)
         migrate_statements.size.should eq(2)
 
-        rollback_statements = migration.statements_for(:rollback)
+        rollback_statements = migration.statements_for(:down)
         rollback_statements.size.should eq(1)
         rollback_statements.first.should eq("SELECT 3;")
       end
@@ -105,25 +122,25 @@ describe Drift::Migration do
           SQL
 
         data = <<-SQL
-          -- drift:migrate
+          -- drift:up
           #{create_statement}
           CREATE INDEX IF NOT EXISTS idx_humans_name ON humans(name);
 
-          -- drift:rollback
+          -- drift:down
           DROP TABLE IF EXISTS humans;
           SQL
 
         migration = Drift::Migration.from_io(data, 1)
-        migration.statements_for(:migrate).size.should eq(2)
-        migration.statements_for(:rollback).size.should eq(1)
+        migration.statements_for(:up).size.should eq(2)
+        migration.statements_for(:down).size.should eq(1)
 
-        create_statement = migration.statements_for(:migrate).first
+        create_statement = migration.statements_for(:up).first
         create_statement.should eq(create_statement)
       end
 
       it "handles mixing regular statements with multi-statement blocks" do
         mixed_statement = <<-SQL
-          -- drift:migrate
+          -- drift:up
           CREATE TABLE users (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
@@ -143,7 +160,7 @@ describe Drift::Migration do
 
           CREATE INDEX idx_users_name ON users(name);
 
-          -- drift:rollback
+          -- drift:down
           DROP INDEX IF EXISTS idx_users_name;
           DROP TRIGGER IF EXISTS set_timestamp_on_insert;
           DROP TABLE IF EXISTS users;
@@ -152,10 +169,73 @@ describe Drift::Migration do
         migration = Drift::Migration.from_io(mixed_statement, 1)
 
         # Should have 3 migrate statements: table creation, trigger, and index
-        migration.statements_for(:migrate).size.should eq(3)
+        migration.statements_for(:up).size.should eq(3)
 
         # Should have 3 rollback statements: index drop, trigger drop, and table drop
-        migration.statements_for(:rollback).size.should eq(3)
+        migration.statements_for(:down).size.should eq(3)
+      end
+    end
+
+    context "(deprecated markers)" do
+      it "outputs deprecation warning for drift:migrate marker" do
+        data = <<-SQL
+          -- drift:migrate
+          SELECT 1;
+          SQL
+
+        stderr = capture_stderr do
+          migration = Drift::Migration.from_io(data, 1)
+          migration.statements_for(:up).size.should eq(1)
+        end
+
+        stderr.should contain("DEPRECATED: 'drift:migrate' marker in '1' is deprecated, use 'drift:up' instead")
+      end
+
+      it "outputs deprecation warning for drift:rollback marker" do
+        data = <<-SQL
+          -- drift:rollback
+          SELECT 1;
+          SQL
+
+        stderr = capture_stderr do
+          migration = Drift::Migration.from_io(data, 1)
+          migration.statements_for(:down).size.should eq(1)
+        end
+
+        stderr.should contain("DEPRECATED: 'drift:rollback' marker in '1' is deprecated, use 'drift:down' instead")
+      end
+
+      it "outputs deprecation warning only once when both deprecated markers present" do
+        data = <<-SQL
+          -- drift:migrate
+          SELECT 1;
+
+          -- drift:rollback
+          SELECT 2;
+          SQL
+
+        stderr = capture_stderr do
+          migration = Drift::Migration.from_io(data, 1)
+          migration.statements_for(:up).size.should eq(1)
+          migration.statements_for(:down).size.should eq(1)
+        end
+
+        # Should only contain one deprecation warning (the first one encountered)
+        stderr.scan(/DEPRECATED/).size.should eq(1)
+        stderr.should contain("drift:migrate")
+      end
+
+      it "uses filename in deprecation warning when provided" do
+        data = <<-SQL
+          -- drift:migrate
+          SELECT 1;
+          SQL
+
+        stderr = capture_stderr do
+          Drift::Migration.from_io(data, 1, "test_migration.sql")
+        end
+
+        stderr.should contain("'test_migration.sql'")
       end
     end
   end
@@ -167,22 +247,22 @@ describe Drift::Migration do
 
       migration.id.should eq(20211219152312)
       migration.filename.should eq("20211219152312_create_humans.sql")
-      migration.statements_for(:migrate).size.should eq(2)
-      migration.statements_for(:rollback).size.should eq(2)
+      migration.statements_for(:up).size.should eq(2)
+      migration.statements_for(:down).size.should eq(2)
     end
 
     it "loads multi-statement migration with begin/end markers correctly" do
       file_path = fixture_path("trigger", "20250302234927_create_timestamp_trigger.sql")
       migration = Drift::Migration.load_file(file_path)
 
-      migration.statements_for(:migrate).size.should eq(1)
-      migrate_stmt = migration.statements_for(:migrate).first
+      migration.statements_for(:up).size.should eq(1)
+      migrate_stmt = migration.statements_for(:up).first
       migrate_stmt.should contain("CREATE TRIGGER update_timestamp")
       migrate_stmt.should contain("UPDATE employees")
       migrate_stmt.should contain("INSERT INTO")
 
-      migration.statements_for(:rollback).size.should eq(1)
-      migration.statements_for(:rollback).first.should eq("DROP TRIGGER IF EXISTS update_timestamp;")
+      migration.statements_for(:down).size.should eq(1)
+      migration.statements_for(:down).first.should eq("DROP TRIGGER IF EXISTS update_timestamp;")
     end
 
     it "raises error when unable to determine migration ID" do
@@ -199,10 +279,10 @@ describe Drift::Migration do
       db.scalar("SELECT COUNT(id) FROM dummy;").as(Int64).should eq(0)
 
       migration = Drift::Migration.new(1)
-      migration.add(:migrate, "INSERT INTO dummy (value) VALUES (20);")
-      migration.add(:migrate, "INSERT INTO dummy (value) VALUES (10);")
+      migration.add(:up, "INSERT INTO dummy (value) VALUES (20);")
+      migration.add(:up, "INSERT INTO dummy (value) VALUES (10);")
 
-      migration.run(:migrate, db)
+      migration.run(:up, db)
 
       values = db.query_all "SELECT value FROM dummy ORDER BY id ASC;", &.read(Int64)
       values.size.should eq(2)
