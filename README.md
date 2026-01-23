@@ -29,23 +29,23 @@ against a database. This applies to both [the CLI](#as-tool-cli) and
 [the library](#as-library-crystal-shard) (Crystal shard).
 
 Each migration file must contain two special comments before any SQL
-statements: `drift:migrate` to indicate that the following statements should
-be executed when migrating and `drift:rollback` to indicate the statements
+statements: `drift:up` to indicate that the following statements should
+be executed when migrating and `drift:down` to indicate the statements
 should be executed when rolling back the migration.
 
-Each type (migrate, rollback) within the file can contain multiple SQL
+Each type (up, down) within the file can contain multiple SQL
 statements. Statements can span multiple lines, but all must be properly
 terminated using `;`.
 
 ```sql
--- drift:migrate
+-- drift:up
 CREATE TABLE users (
   id INTEGER PRIMARY KEY,
   name TEXT,
   phone TEXT
 );
 
--- drift:rollback
+-- drift:down
 DROP TABLE IF EXISTS users;
 ```
 
@@ -54,7 +54,7 @@ For complex SQL statements that include semicolons within the statement itself
 `-- drift:begin` and `-- drift:end` to wrap the entire statement:
 
 ```sql
--- drift:migrate
+-- drift:up
 -- drift:begin
 CREATE TRIGGER update_timestamp AFTER
 UPDATE ON users BEGIN
@@ -72,7 +72,7 @@ VALUES
 END;
 -- drift:end
 
--- drift:rollback
+-- drift:down
 DROP TRIGGER IF EXISTS update_timestamp;
 ```
 
@@ -263,6 +263,15 @@ all the migration files from the filesystem and bundles them within the
 generated executable, removing the need to distribute them along your
 application.
 
+The macro generates a method that returns a `Drift::Context` containing all the
+bundled migrations. By default, it creates an **instance method**. To create a
+**class method** instead, prepend `self.` to the method name.
+
+##### Basic usage (top-level)
+
+When used at the top level of your application, `embed_as` creates a method
+you can call directly:
+
 ```crystal
 require "sqlite3"
 require "drift"
@@ -277,11 +286,64 @@ migrator.apply!
 db.close
 ```
 
-In the above example, `Drift.embed_as` created `my_migrations` method
-bundling all the migrations found in `database/migrations` directory.
+##### Usage within modules or classes
 
-When using classes or modules, you can also define instance or class methods
-by prepending `self.` to the method name to use by Drift.
+When embedding migrations inside a module or class, use `self.` prefix to
+create a class method. This allows you to call the method on the module/class
+itself:
+
+```crystal
+module MyApp::Database
+  Drift.embed_as("self.migrations", "database/migrations", dir: __DIR__)
+
+  def self.migrate(db)
+    migrator = Drift::Migrator.new(db, migrations)
+    migrator.apply!
+  end
+end
+
+# Usage:
+db = DB.connect "sqlite3:app.db"
+MyApp::Database.migrate(db)
+```
+
+Note the use of `dir: __DIR__` to resolve the migrations path relative to the
+source file location rather than the current working directory.
+
+##### Using an abstract interface pattern
+
+For more complex applications, you can define an abstract interface that
+multiple database classes can implement:
+
+```crystal
+module MyApp::Migratable
+  abstract def context : Drift::Context
+  abstract def database : DB::Database
+
+  def migrate
+    migrator = Drift::Migrator.new(database, context)
+    migrator.apply!
+  end
+end
+
+class MyApp::MainDatabase
+  include MyApp::Migratable
+
+  Drift.embed_as("context", "database/migrations", dir: __DIR__)
+
+  def database : DB::Database
+    # return your database connection
+  end
+end
+
+# Usage:
+main_db = MyApp::MainDatabase.new
+main_db.migrate
+```
+
+In this pattern, `embed_as` generates an instance method named `context` that
+satisfies the abstract method requirement from `Migratable`. Each database class
+can embed its own set of migrations while sharing the common migration logic.
 
 ## Development
 

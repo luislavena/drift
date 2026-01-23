@@ -1,4 +1,4 @@
--- drift:migrate
+-- drift:up
 CREATE TABLE IF NOT EXISTS audit_log (
     id INTEGER PRIMARY KEY,
     employee_id INTEGER NOT NULL,
@@ -7,5 +7,5 @@ CREATE TABLE IF NOT EXISTS audit_log (
     FOREIGN KEY (employee_id) REFERENCES employees (id)
 );
 
--- drift:rollback
+-- drift:down
 DROP TABLE IF EXISTS audit_log;

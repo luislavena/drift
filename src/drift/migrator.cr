@@ -166,7 +166,7 @@ module Drift
           # trigger before_apply callbacks
           @before_apply.each &.call(id)
 
-          duration = Time.measure { migration.run(:migrate, cnn) }
+          duration = Time.measure { migration.run(:up, cnn) }
           applied_at = Time.utc
           duration_ns = duration.total_nanoseconds.to_i64
 
@@ -189,7 +189,7 @@ module Drift
 
           @before_rollback.each &.call(id)
 
-          duration = Time.measure { migration.run(:rollback, cnn) }
+          duration = Time.measure { migration.run(:down, cnn) }
 
           @dialect.delete_migration(cnn, id)
 
