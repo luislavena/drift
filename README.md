@@ -96,11 +96,15 @@ in reverse order using the information on the previously mentioned table.
 ## Requirements
 
 Drift CLI is a standalone, self-contained executable capable of connecting to
-SQLite databases.
+the following databases (dialects):
+
+* MySQL
+* PostgreSQL
+* SQLite3
 
 Drift (as library) only depends on Crystal's
 [`db`](https://github.com/crystal-lang/crystal-db) common API. To use it with
-to specific adapters, you need to add the respective dependencies and require
+specific adapters, you need to add the respective dependencies and require
 them part of your application. See more about in the
 [library usage](#as-library-crystal-shard) section.
 
@@ -189,7 +193,35 @@ application:
 require "sqlite3"
 require "drift"
 
-db = DB.connect "sqlite3:app.db"
+db = DB.open "sqlite3:app.db"
+
+migrator = Drift::Migrator.from_path(db, "database/migrations")
+migrator.apply!
+
+db.close
+```
+
+For a MySQL database:
+
+```crystal
+require "mysql"
+require "drift"
+
+db = DB.open "mysql://user:password@localhost/dbname"
+
+migrator = Drift::Migrator.from_path(db, "database/migrations")
+migrator.apply!
+
+db.close
+```
+
+Or for a PostgreSQL database:
+
+```crystal
+require "pg"
+require "drift"
+
+db = DB.open "postgres://user:password@localhost/dbname"
 
 migrator = Drift::Migrator.from_path(db, "database/migrations")
 migrator.apply!
@@ -246,7 +278,7 @@ require "drift"
 
 Drift.embed_as("my_migrations", "database/migrations")
 
-db = DB.connect "sqlite3:app.db"
+db = DB.open "sqlite3:app.db"
 
 migrator = Drift::Migrator.new(db, my_migrations)
 migrator.apply!
@@ -312,6 +344,32 @@ main_db.migrate
 In this pattern, `embed_as` generates an instance method named `context` that
 satisfies the abstract method requirement from `Migratable`. Each database class
 can embed its own set of migrations while sharing the common migration logic.
+
+## Development
+
+### Running tests
+
+By default, tests run against all supported databases (MySQL, PostgreSQL,
+SQLite3).
+
+To skip specific databases:
+
+```console
+$ SKIP_MYSQL=true crystal spec        # Skip MySQL tests
+$ SKIP_POSTGRESQL=true crystal spec   # Skip PostgreSQL tests
+```
+
+Start database services with Docker Compose:
+
+```console
+$ docker compose up -d mysql postgres
+```
+
+Stop database services:
+
+```console
+$ docker compose down
+```
 
 ## Contribution policy
 

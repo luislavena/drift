@@ -27,7 +27,7 @@ export FIXGID
 # Make `help` the default task
 .DEFAULT_GOAL := help
 
-.PHONY: build console logs restart setup start stop help
+.PHONY: console dev help restart setup stop
 
 console: ## start a console session
 	@docker compose exec app sh -i 2>/dev/null || docker compose run --rm app -- sh -i

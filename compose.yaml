@@ -3,15 +3,57 @@ services:
     image: ghcr.io/luislavena/hydrofoil-crystal:${CRYSTAL_VERSION:-1.16}
     command: overmind start -f Procfile.dev
     working_dir: /workspace/${COMPOSE_PROJECT_NAME}
+    depends_on:
+      - mysql
+      - postgres
     environment:
       # Workaround Overmind socket issues with Vite
       # Ref: https://github.com/luislavena/hydrofoil-crystal/issues/66
       - OVERMIND_SOCKET=/tmp/overmind.sock
       # Disable Shards' postinstall
       - SHARDS_OPTS=--skip-postinstall
+      # Test DBs
+      - MYSQL_DB_URL=mysql://drift:drift@mysql:3306/drift_test
+      - POSTGRES_DB_URL=postgres://drift:drift@postgres:5432/drift_test
 
     # Set these env variables using `export FIXUID=$(id -u) FIXGID=$(id -g)`
     user: ${FIXUID:-1000}:${FIXGID:-1000}
 
     volumes:
       - .:/workspace/${COMPOSE_PROJECT_NAME}:cached
+
+  mysql:
+    image: mysql:8.0-oracle
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_DATABASE: drift_test
+      MYSQL_USER: drift
+      MYSQL_PASSWORD: drift
+      MYSQL_ROOT_PASSWORD: drift_root
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - mysql:/var/lib/mysql
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: drift_test
+      POSTGRES_USER: drift
+      POSTGRES_PASSWORD: drift
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - postgres:/var/lib/postgresql
+
+volumes:
+  mysql:
+    driver: local
+  postgres:
+    driver: local

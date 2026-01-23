@@ -1,0 +1,5 @@
+kind: improved
+body: Optimize rollback plan calculations and memory usage
+time: 2025-10-12T12:51:24.699334+02:00
+custom:
+    Issue: ""

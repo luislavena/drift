@@ -17,6 +17,8 @@ require "option_parser"
 require "./drift"
 require "./drift/commands/*"
 
+require "mysql"
+require "pg"
 require "sqlite3"
 
 module Drift

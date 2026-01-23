@@ -29,8 +29,39 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_DATABASE: drift_test
+          MYSQL_USER: drift
+          MYSQL_PASSWORD: drift
+          MYSQL_ROOT_PASSWORD: drift_root
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        ports:
+          - 3306:3306
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: drift_test
+          POSTGRES_USER: drift
+          POSTGRES_PASSWORD: drift
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     steps:
       - uses: actions/checkout@v4
       - uses: crystal-lang/install-crystal@v1
       - run: shards install
       - run: crystal spec
+        env:
+          MYSQL_DB_URL: mysql://drift:drift@localhost:3306/drift_test
+          POSTGRES_DB_URL: postgres://drift:drift@localhost:5432/drift_test
