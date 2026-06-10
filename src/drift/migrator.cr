@@ -13,23 +13,11 @@
 # limitations under the License.
 
 require "./context"
+require "./migration_entry"
 require "db"
 
 module Drift
   class Migrator
-    class MigrationEntry
-      include DB::Serializable
-
-      getter id : Int64
-      getter batch : Int64
-      getter duration_ns : Int64
-      getter applied_at : Time
-
-      def duration
-        Time::Span.new(nanoseconds: duration_ns)
-      end
-    end
-
     getter context : Context
     getter db : DB::Database | DB::Connection
 
