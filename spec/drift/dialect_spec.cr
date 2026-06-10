@@ -16,6 +16,7 @@ require "../spec_helper"
 
 require "sqlite3"
 require "mysql"
+require "pg"
 
 # A connection class crystal-db accepts but no Drift dialect knows about,
 # used to exercise the UnsupportedDialectError path without a server.
@@ -75,5 +76,22 @@ if mysql_url = ENV["MYSQL_DATABASE_URL"]?
 else
   describe Drift::Dialect do
     pending "MySQL dialect selection (set MYSQL_DATABASE_URL to run)"
+  end
+end
+
+if pg_url = ENV["POSTGRES_DATABASE_URL"]?
+  describe Drift::Dialect do
+    it "returns PostgreSQL dialect for a PostgreSQL connection" do
+      db = DB.open(pg_url)
+      begin
+        Drift::Dialect.from_db(db).should be_a(Drift::Dialects::PostgreSQL)
+      ensure
+        db.close
+      end
+    end
+  end
+else
+  describe Drift::Dialect do
+    pending "PostgreSQL dialect selection (set POSTGRES_DATABASE_URL to run)"
   end
 end
