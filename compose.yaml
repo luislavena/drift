@@ -9,9 +9,47 @@ services:
       - OVERMIND_SOCKET=/tmp/overmind.sock
       # Disable Shards' postinstall
       - SHARDS_OPTS=--skip-postinstall
+      # Cross-engine specs connect to the sibling database services
+      - MYSQL_DATABASE_URL=mysql://root:drift@mysql:3306/drift_test
+      - POSTGRES_DATABASE_URL=postgres://postgres:drift@postgres:5432/drift_test
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
 
     # Set these env variables using `export FIXUID=$(id -u) FIXGID=$(id -g)`
     user: ${FIXUID:-1000}:${FIXGID:-1000}
 
     volumes:
       - .:/workspace/${COMPOSE_PROJECT_NAME}:cached
+
+  mysql:
+    image: mysql:8.4
+    # crystal-mysql only speaks mysql_native_password, which MySQL 8.4
+    # disables by default (and 9.x removes entirely).
+    command: --mysql-native-password=ON --authentication-policy=mysql_native_password,,
+    environment:
+      MYSQL_ROOT_PASSWORD: drift
+      MYSQL_DATABASE: drift_test
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-pdrift"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: drift
+      POSTGRES_DB: drift_test
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
