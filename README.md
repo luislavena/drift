@@ -96,7 +96,7 @@ in reverse order using the information on the previously mentioned table.
 ## Requirements
 
 Drift CLI is a standalone, self-contained executable capable of connecting to
-SQLite databases.
+SQLite, MySQL and PostgreSQL databases.
 
 Drift (as library) only depends on Crystal's
 [`db`](https://github.com/crystal-lang/crystal-db) common API. To use it with
@@ -200,6 +200,28 @@ db.close
 The above is a simplified version of what happens when doing `drift migrate`
 in the CLI. For example, you could apply these migrations as part of your
 application start process.
+
+#### Supported databases
+
+Drift works with SQLite, MySQL and PostgreSQL. It detects the engine from
+the connection and uses the matching SQL to track applied migrations, so
+they work the same way independently of the database you choose.
+
+Add the driver for your database to `shard.yml` and require it before Drift:
+
+* SQLite: [crystal-sqlite3](https://github.com/crystal-lang/crystal-sqlite3)
+* MySQL: [crystal-mysql](https://github.com/crystal-lang/crystal-mysql)
+* PostgreSQL: [crystal-pg](https://github.com/will/crystal-pg)
+
+```crystal
+require "sqlite3" # or "mysql" or "pg"
+require "drift"
+```
+
+Note: MySQL cannot roll back a failed migration batch. Every DDL statement
+(Eg. `CREATE TABLE` or `ALTER TABLE`) triggers an implicit commit, so the
+migrations applied earlier in that batch stay applied. SQLite and PostgreSQL
+support transactional DDL, so a failed batch rolls back as a whole.
 
 Internally, the library interconnects the following elements:
 
@@ -312,6 +334,28 @@ main_db.migrate
 In this pattern, `embed_as` generates an instance method named `context` that
 satisfies the abstract method requirement from `Migratable`. Each database class
 can embed its own set of migrations while sharing the common migration logic.
+
+## Development
+
+Specs against MySQL and PostgreSQL need a running server, so they are
+skipped (shown as pending) unless `MYSQL_DATABASE_URL` and
+`POSTGRES_DATABASE_URL` are set. SQLite specs always run, no setup needed.
+
+The development container starts both databases and sets both variables
+for you:
+
+```console
+$ docker compose run --rm app -- crystal spec
+```
+
+To run the specs from the host instead:
+
+```console
+$ docker compose up -d mysql postgres
+$ export MYSQL_DATABASE_URL="mysql://root:drift@127.0.0.1:3306/drift_test"
+$ export POSTGRES_DATABASE_URL="postgres://postgres:drift@127.0.0.1:5432/drift_test"
+$ crystal spec
+```
 
 ## Contribution policy
 

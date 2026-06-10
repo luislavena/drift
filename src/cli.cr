@@ -18,6 +18,8 @@ require "./drift"
 require "./drift/commands/*"
 
 require "sqlite3"
+require "mysql"
+require "pg"
 
 module Drift
   class CLI

@@ -29,8 +29,35 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: drift
+          POSTGRES_DB: drift_test
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      MYSQL_DATABASE_URL: mysql://root:drift@127.0.0.1:3306/drift_test
+      POSTGRES_DATABASE_URL: postgres://postgres:drift@127.0.0.1:5432/drift_test
     steps:
       - uses: actions/checkout@v4
       - uses: crystal-lang/install-crystal@v1
+      # crystal-mysql only speaks mysql_native_password, which MySQL 8.4
+      # disables by default; service containers cannot pass server flags,
+      # so MySQL starts via docker run instead.
+      - name: Start MySQL
+        run: |
+          docker run --detach --name mysql --publish 3306:3306 \
+            --env MYSQL_ROOT_PASSWORD=drift --env MYSQL_DATABASE=drift_test \
+            mysql:8.4 --mysql-native-password=ON --authentication-policy=mysql_native_password,,
       - run: shards install
+      - name: Wait for MySQL
+        run: |
+          timeout 90 sh -c 'until docker exec mysql mysqladmin ping -h 127.0.0.1 --silent; do sleep 2; done' || { docker logs mysql; exit 1; }
       - run: crystal spec
