@@ -18,11 +18,32 @@ module Drift
   module Dialects
     class MySQL < Dialect
       def create_schema!(db : Queriable) : Nil
-        raise NotImplementedError.new("MySQL#create_schema!")
+        sql = <<-SQL
+          CREATE TABLE IF NOT EXISTS drift_migrations (
+            id BIGINT PRIMARY KEY NOT NULL,
+            batch BIGINT NOT NULL,
+            applied_at DATETIME(6) NOT NULL,
+            duration_ns BIGINT NOT NULL
+          );
+          SQL
+
+        db.exec(sql)
       end
 
       def prepared?(db : Queriable) : Bool
-        raise NotImplementedError.new("MySQL#prepared?")
+        sql = <<-SQL
+          SELECT
+            table_name
+          FROM
+            information_schema.tables
+          WHERE
+            table_schema = DATABASE()
+            AND table_name = 'drift_migrations'
+          LIMIT
+            1;
+          SQL
+
+        db.query_one?(sql, as: String) ? true : false
       end
     end
   end

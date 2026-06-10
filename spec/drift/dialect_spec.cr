@@ -15,6 +15,7 @@
 require "../spec_helper"
 
 require "sqlite3"
+require "mysql"
 
 # A connection class crystal-db accepts but no Drift dialect knows about,
 # used to exercise the UnsupportedDialectError path without a server.
@@ -57,5 +58,22 @@ describe Drift::Dialect do
         Drift::Dialect.from_db(BogusConnection.new)
       end
     end
+  end
+end
+
+if mysql_url = ENV["MYSQL_DATABASE_URL"]?
+  describe Drift::Dialect do
+    it "returns MySQL dialect for a MySQL connection" do
+      db = DB.open(mysql_url)
+      begin
+        Drift::Dialect.from_db(db).should be_a(Drift::Dialects::MySQL)
+      ensure
+        db.close
+      end
+    end
+  end
+else
+  describe Drift::Dialect do
+    pending "MySQL dialect selection (set MYSQL_DATABASE_URL to run)"
   end
 end
