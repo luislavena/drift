@@ -33,6 +33,10 @@ module Drift
   class ContextError < Error
   end
 
+  # :nodoc:
+  class UnsupportedDialectError < Error
+  end
+
   def self.extract_id?(filename : String) : Int64?
     # extract ID from filename
     (ID_PATTERN.match(File.basename(filename)).try &.[1]).try &.to_i64
