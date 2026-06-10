@@ -16,6 +16,9 @@ src/
     ├── migration.cr        # SQL parser
     ├── migrator.cr         # Migration orchestrator
     ├── context.cr          # Migration collection manager
+    ├── dialect.cr          # Dialect base class + selection (from_db)
+    ├── dialects/           # Per-engine SQL (sqlite3, mysql, postgresql)
+    ├── migration_entry.cr  # Applied migration record
     ├── embed.cr            # Macro for embedding migrations
     ├── commands/           # CLI commands (migrate, rollback, reset, status, new, version)
     └── support/migrations_loader.cr
@@ -63,6 +66,12 @@ shards build --release drift    # Release (outputs to bin/drift)
 crystal spec                           # All tests
 crystal spec spec/drift/migration_spec.cr  # Specific file
 crystal spec --verbose                 # Verbose
+
+# Cross-engine specs (MySQL/PostgreSQL) skip unless these are set. The app
+# container in compose.yaml sets them already; from the host:
+docker compose up -d mysql postgres
+export MYSQL_DATABASE_URL="mysql://root:drift@127.0.0.1:3306/drift_test"
+export POSTGRES_DATABASE_URL="postgres://postgres:drift@127.0.0.1:5432/drift_test"
 
 # Format (enforced by CI)
 crystal tool format src/ spec/         # Apply

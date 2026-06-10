@@ -1,0 +1,5 @@
+kind: changed
+body: Move database drivers (sqlite3, mysql, pg) to development dependencies; applications require the driver they use
+time: 2026-06-10T09:58:07.000000+00:00
+custom:
+    Issue: ""
