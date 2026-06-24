@@ -40,6 +40,8 @@ module Drift
     # namespace is the only signal available.
     def self.from_db(conn : DB::Connection) : Dialect
       case conn.class.name
+      when .starts_with?("MySql::")
+        Dialect::MySQL.new
       when .starts_with?("SQLite3")
         Dialect::SQLite3.new
       else

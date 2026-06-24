@@ -17,11 +17,13 @@ require "../spec_helper"
 # Each dialect is a development dependency and must be required so the
 # connection pool can open the matching driver.
 require "sqlite3"
+require "mysql"
 
 # Dialects exercised by the integration specs. Defaults target the compose
 # services; override the URLs via the environment to point elsewhere.
 DIALECTS = [
   {name: "SQLite3", url: ENV.fetch("SQLITE_URL", "sqlite3:%3Amemory%3A")},
+  {name: "MySQL", url: ENV.fetch("MYSQL_URL", "mysql://root@mysql/drift_test")},
 ]
 
 private def clean!(db)
@@ -36,7 +38,7 @@ private def fresh_db(url)
 end
 
 private def create_dummy(db)
-  db.exec "CREATE TABLE IF NOT EXISTS dummy (value INTEGER NOT NULL);"
+  db.exec "CREATE TABLE IF NOT EXISTS dummy (value BIGINT NOT NULL);"
 end
 
 private def fake_migration(db, dialect, id = 1_i64, batch = 1_i64)
