@@ -9,9 +9,43 @@ services:
       - OVERMIND_SOCKET=/tmp/overmind.sock
       # Disable Shards' postinstall
       - SHARDS_OPTS=--skip-postinstall
+      # Database URLs used by the integration specs
+      - SQLITE_URL=sqlite3:%3Amemory%3A
+      - MYSQL_URL=mysql://root@mysql/drift_test
+      - POSTGRES_URL=postgres://drift@postgres/drift_test
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
 
     # Set these env variables using `export FIXUID=$(id -u) FIXGID=$(id -g)`
     user: ${FIXUID:-1000}:${FIXGID:-1000}
 
     volumes:
       - .:/workspace/${COMPOSE_PROJECT_NAME}:cached
+
+  mysql:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      - MYSQL_ALLOW_EMPTY_PASSWORD=yes
+      - MYSQL_DATABASE=drift_test
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  postgres:
+    image: postgres:16
+    environment:
+      - POSTGRES_HOST_AUTH_METHOD=trust
+      - POSTGRES_USER=drift
+      - POSTGRES_DB=drift_test
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "drift"]
+      interval: 5s
+      timeout: 5s
+      retries: 20

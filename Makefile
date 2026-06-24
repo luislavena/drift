@@ -27,7 +27,7 @@ export FIXGID
 # Make `help` the default task
 .DEFAULT_GOAL := help
 
-.PHONY: build console logs restart setup start stop help
+.PHONY: build console logs restart setup start stop test help
 
 console: ## start a console session
 	@docker compose exec app sh -i 2>/dev/null || docker compose run --rm app -- sh -i
@@ -57,6 +57,10 @@ restart: ## restart the containers
 setup: ## initialize the project
 	@docker compose build app
 	@docker compose run --rm app -- sh -c '(shards check || shards install)'
+
+test: ## run the test suite (starts MySQL and PostgreSQL)
+	@docker compose up -d mysql postgres
+	@docker compose run --rm app -- crystal spec
 
 stop: ## stop running containers
 	@docker compose down
