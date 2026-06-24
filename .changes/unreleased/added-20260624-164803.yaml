@@ -1,0 +1,5 @@
+kind: added
+body: Support MySQL and PostgreSQL through a per-dialect SQL adapter
+time: 2026-06-24T16:48:03+02:00
+custom:
+    Issue: ""
