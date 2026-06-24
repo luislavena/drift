@@ -18,12 +18,14 @@ require "../spec_helper"
 # connection pool can open the matching driver.
 require "sqlite3"
 require "mysql"
+require "pg"
 
 # Dialects exercised by the integration specs. Defaults target the compose
 # services; override the URLs via the environment to point elsewhere.
 DIALECTS = [
   {name: "SQLite3", url: ENV.fetch("SQLITE_URL", "sqlite3:%3Amemory%3A")},
   {name: "MySQL", url: ENV.fetch("MYSQL_URL", "mysql://root@mysql/drift_test")},
+  {name: "PostgreSQL", url: ENV.fetch("POSTGRES_URL", "postgres://drift@postgres/drift_test")},
 ]
 
 private def clean!(db)

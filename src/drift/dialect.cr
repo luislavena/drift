@@ -42,6 +42,8 @@ module Drift
       case conn.class.name
       when .starts_with?("MySql::")
         Dialect::MySQL.new
+      when .starts_with?("PG::")
+        Dialect::PostgreSQL.new
       when .starts_with?("SQLite3")
         Dialect::SQLite3.new
       else
