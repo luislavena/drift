@@ -27,6 +27,15 @@ jobs:
       - uses: crystal-lang/install-crystal@v1
       - run: crystal tool format --check
 
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crystal-ameba/github-action@v1
+        with:
+          # keep rules in sync with docker/dev.dockerfile
+          version: 1.7.0
+
   test:
     runs-on: ubuntu-latest
     steps:
