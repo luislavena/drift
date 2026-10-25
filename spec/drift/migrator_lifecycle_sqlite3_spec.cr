@@ -16,6 +16,4 @@ require "../support/migrator_lifecycle"
 
 require "sqlite3"
 
-it_behaves_like_a_migrator("SQLite3", Proc(LifecycleDB).new {
-  DB.connect "sqlite3:%3Amemory%3A"
-})
+it_behaves_like_a_migrator("SQLite3", "sqlite3:%3Amemory%3A")

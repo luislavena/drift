@@ -14,8 +14,6 @@
 
 require "../spec_helper"
 
-alias LifecycleDB = DB::Database | DB::Connection
-
 # Migrations used by the cross-engine lifecycle specs. The SQL here must be
 # valid on SQLite, MySQL and PostgreSQL alike.
 def lifecycle_context
@@ -37,8 +35,8 @@ end
 # Yields a database handle with no leftover Drift state. Tables are dropped
 # before (not after) each example, so an interrupted run never poisons the
 # next one. In-memory SQLite starts empty, but dropping is harmless there.
-def with_clean_db(factory : -> LifecycleDB, &)
-  db = factory.call
+def with_clean_db(url : String, &)
+  db = DB.connect(url)
   begin
     db.exec "DROP TABLE IF EXISTS drift_migrations;"
     db.exec "DROP TABLE IF EXISTS drift_test_people;"
@@ -49,11 +47,11 @@ def with_clean_db(factory : -> LifecycleDB, &)
 end
 
 # Registers the Migrator behavioral contract against one engine. Every
-# engine must pass exactly the same examples; only the factory differs.
-def it_behaves_like_a_migrator(engine : String, factory : -> LifecycleDB)
+# engine must pass exactly the same examples; only the URL differs.
+def it_behaves_like_a_migrator(engine : String, url : String)
   describe "Drift::Migrator (#{engine})" do
     it "prepares the migrations table" do
-      with_clean_db(factory) do |db|
+      with_clean_db(url) do |db|
         migrator = Drift::Migrator.new(db, lifecycle_context)
 
         migrator.prepared?.should be_false
@@ -67,7 +65,7 @@ def it_behaves_like_a_migrator(engine : String, factory : -> LifecycleDB)
     end
 
     it "applies pending migrations and records them" do
-      with_clean_db(factory) do |db|
+      with_clean_db(url) do |db|
         migrator = Drift::Migrator.new(db, lifecycle_context)
 
         migrator.apply!
@@ -90,7 +88,7 @@ def it_behaves_like_a_migrator(engine : String, factory : -> LifecycleDB)
     end
 
     it "does nothing when migrations are applied again" do
-      with_clean_db(factory) do |db|
+      with_clean_db(url) do |db|
         migrator = Drift::Migrator.new(db, lifecycle_context)
 
         migrator.apply!
@@ -102,7 +100,7 @@ def it_behaves_like_a_migrator(engine : String, factory : -> LifecycleDB)
     end
 
     it "rolls back only the last batch" do
-      with_clean_db(factory) do |db|
+      with_clean_db(url) do |db|
         migrator = Drift::Migrator.new(db, lifecycle_context)
 
         migrator.prepare!
@@ -118,7 +116,7 @@ def it_behaves_like_a_migrator(engine : String, factory : -> LifecycleDB)
     end
 
     it "resets all applied migrations in reverse order" do
-      with_clean_db(factory) do |db|
+      with_clean_db(url) do |db|
         migrator = Drift::Migrator.new(db, lifecycle_context)
 
         migrator.apply!

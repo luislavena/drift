@@ -17,9 +17,7 @@ require "../support/migrator_lifecycle"
 require "pg"
 
 if pg_url = ENV["POSTGRES_DATABASE_URL"]?
-  it_behaves_like_a_migrator("PostgreSQL", Proc(LifecycleDB).new {
-    DB.open(pg_url)
-  })
+  it_behaves_like_a_migrator("PostgreSQL", pg_url)
 else
   describe "Drift::Migrator (PostgreSQL)" do
     pending "set POSTGRES_DATABASE_URL to run against a live server"

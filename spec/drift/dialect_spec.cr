@@ -18,11 +18,15 @@ require "sqlite3"
 require "mysql"
 require "pg"
 
-# A connection class crystal-db accepts but no Drift dialect knows about,
+# A connection crystal-db accepts but no Drift dialect knows about,
 # used to exercise the UnsupportedDialectError path without a server.
 private class BogusConnection < DB::Connection
   def initialize
     super(DB::Connection::Options.new)
+  end
+
+  def driver_name : String
+    "bogus"
   end
 
   def build_prepared_statement(query) : DB::Statement
@@ -54,8 +58,8 @@ describe Drift::Dialect do
       end
     end
 
-    it "raises UnsupportedDialectError for unknown connection classes" do
-      expect_raises(Drift::UnsupportedDialectError, /BogusConnection/) do
+    it "raises UnsupportedDialectError for unknown drivers" do
+      expect_raises(Drift::UnsupportedDialectError, /bogus/) do
         Drift::Dialect.from_db(BogusConnection.new)
       end
     end

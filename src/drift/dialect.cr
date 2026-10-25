@@ -27,18 +27,16 @@ module Drift
   abstract class Dialect
     alias Queriable = DB::Database | DB::Connection
 
-    # Crystal's DB API cannot expose URI or scheme information from a live
-    # connection, so the dialect is selected by connection class name.
     def self.from_db(conn : DB::Connection) : Dialect
-      case conn.class.name
-      when .starts_with?("MySql::")
+      case conn.driver_name
+      when "mysql"
         Dialects::MySQL.new
-      when .starts_with?("PG::")
+      when "postgres"
         Dialects::PostgreSQL.new
-      when .starts_with?("SQLite3")
+      when "sqlite3"
         Dialects::SQLite3.new
       else
-        raise UnsupportedDialectError.new("Unsupported database: #{conn.class.name}")
+        raise UnsupportedDialectError.new("Unsupported database: #{conn.driver_name}")
       end
     end
 

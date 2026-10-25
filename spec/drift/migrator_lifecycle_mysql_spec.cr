@@ -17,9 +17,7 @@ require "../support/migrator_lifecycle"
 require "mysql"
 
 if mysql_url = ENV["MYSQL_DATABASE_URL"]?
-  it_behaves_like_a_migrator("MySQL", Proc(LifecycleDB).new {
-    DB.open(mysql_url)
-  })
+  it_behaves_like_a_migrator("MySQL", mysql_url)
 else
   describe "Drift::Migrator (MySQL)" do
     pending "set MYSQL_DATABASE_URL to run against a live server"
