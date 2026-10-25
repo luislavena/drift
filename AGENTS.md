@@ -67,7 +67,13 @@ crystal spec --verbose                 # Verbose
 # Format (enforced by CI)
 crystal tool format src/ spec/         # Apply
 crystal tool format --check src/ spec/ # Check only
+
+# Lint (enforced by CI)
+ameba                                  # Check src/ and spec/
 ```
+
+Ameba is installed in the dev image (`docker/dev.dockerfile`). After a change
+to that file, run `docker compose build app`.
 
 ## Pull request guidelines
 
@@ -85,11 +91,11 @@ Kinds: `added`, `improved`, `changed`, `deprecated`, `removed`, `fixed`, `securi
 
 **Before submitting:**
 1. Tests pass
-2. Code formatted
+2. Code formatted and `ameba` passes
 3. Changelog entry added
 4. Rebased on main
 
-**CI checks:** Format, tests, changelog.
+**CI checks:** Format, lint, tests, changelog.
 
 ## Contribution policy
 

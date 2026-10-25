@@ -49,7 +49,7 @@ module Drift
                   cell id.to_s
                 end
 
-                if migration = applied.find { |m| m.id == id }
+                if migration = applied.find { |entry| entry.id == id }
                   cell "Yes"
                   cell migration.batch.to_s, align: :right
                   cell migration.applied_at.to_s
