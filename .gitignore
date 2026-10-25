@@ -5,6 +5,7 @@
 /database
 /docs/
 /lib/
+/.worktrees/
 NOTES.txt
 
 # Libraries don't need dependency lock
