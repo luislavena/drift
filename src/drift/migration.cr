@@ -23,15 +23,18 @@ module Drift
     # :nodoc:
     MAGIC_MARKER = "-- drift:"
 
+    # :nodoc:
+    DEPRECATED_MARKERS = {"migrate" => "up", "rollback" => "down"}
+
     getter id : Int64
     getter filename : String? = nil
 
     @statements : Hash(Type, Array(String))
 
     def initialize(@id : Int64, @filename : String? = nil)
-      @statements = Type.values.to_h { |type|
+      @statements = Type.values.to_h do |type|
         {type, Array(String).new}
-      }
+      end
     end
 
     def add(type : Type, statement : String)
@@ -48,37 +51,32 @@ module Drift
       @statements[type]
     end
 
+    # TODO: remove ameba:disable along with the deprecated markers support
+    # ameba:disable Metrics/CyclomaticComplexity
     def self.from_io(io, id : Int64, filename : String? = nil) : self
       migration = new(id, filename)
 
       buffer = IO::Memory.new
       type = nil
       multi_statement_mode = false
-      deprecated_warning_shown = false
+      deprecated_marker_found = false
 
       io.each_line do |line|
         stripped_line = line.strip
         # detect markers
         if stripped_line.starts_with?(MAGIC_MARKER)
-          case stripped_line[MAGIC_MARKER.size..-1]
+          raw_marker = stripped_line[MAGIC_MARKER.size..-1]
+          marker, deprecated = normalize_marker(raw_marker)
+          if deprecated && !deprecated_marker_found
+            STDERR.puts "DEPRECATED: 'drift:#{raw_marker}' marker in '#{filename || id}' is deprecated, use 'drift:#{marker}' instead"
+            deprecated_marker_found = true
+          end
+
+          case marker
           when "up"
             type = Type::Up
             next
           when "down"
-            type = Type::Down
-            next
-          when "migrate"
-            unless deprecated_warning_shown
-              STDERR.puts "DEPRECATED: 'drift:migrate' marker in '#{filename || id}' is deprecated, use 'drift:up' instead"
-              deprecated_warning_shown = true
-            end
-            type = Type::Up
-            next
-          when "rollback"
-            unless deprecated_warning_shown
-              STDERR.puts "DEPRECATED: 'drift:rollback' marker in '#{filename || id}' is deprecated, use 'drift:down' instead"
-              deprecated_warning_shown = true
-            end
             type = Type::Down
             next
           when "begin"
@@ -111,6 +109,15 @@ module Drift
       end
 
       migration
+    end
+
+    # Returns the current name for a marker, and whether it was deprecated
+    private def self.normalize_marker(marker : String) : {String, Bool}
+      if replacement = DEPRECATED_MARKERS[marker]?
+        {replacement, true}
+      else
+        {marker, false}
+      end
     end
 
     def self.load_file(filename : String) : self

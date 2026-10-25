@@ -1,6 +1,10 @@
 services:
   app:
-    image: ghcr.io/luislavena/hydrofoil-crystal:${CRYSTAL_VERSION:-1.16}
+    build:
+      context: .
+      dockerfile: docker/dev.dockerfile
+      args:
+        CRYSTAL_VERSION: ${CRYSTAL_VERSION:-1.16}
     command: overmind start -f Procfile.dev
     working_dir: /workspace/${COMPOSE_PROJECT_NAME}
     environment:
